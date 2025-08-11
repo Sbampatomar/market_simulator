@@ -1,0 +1,88 @@
+symbol,sector,sector_details,country,company_name,industry,sub_industry,details
+ENI.MI,Energy,Oil & Gas,Italy,Eni S.p.A.,Energy,"Oil, Gas & Consumable Fuels","Italian multinational oil and gas company operating in exploration, production, refining and power generation."
+ISP.MI,Financials,Bank, Italy,Intesa Sanpaolo,,Other,Other
+ENG.MC,Utilities,Natural Gas Transmission,Spain,Enagás S.A.,Utilities,Gas Utilities,Spanish natural gas transmission operator managing a large part of Spain gas infrastructure.
+TTE.PA,Energy,Energy,France,Total Energie,,Other,Other
+PEP.MI,Consumer-Staples,Beverages,United States,PepsiCo Inc. (listada em Milão),Consumer Staples,Beverages,
+ALV.DE,Financials,Financials,Germany,Allianz SE,Other,Other,
+BAS.DE,Materials,Industrials,Germany,BASF SE,Other,Other,
+BMED.MI,Financials,Banking,Italy,Banca Mediolanum S.p.A.,Financials,Banks,
+CIS.BE,Information-Technology,Networking,Belgium,"Cisco Systems, Inc. (listada na Bélgica)",Information Technology,Communications Equipment,
+ENEL.MI,Utilities,Diversified Utilities,Italy,Enel S.p.A.,Other,Other,Italy largest utility company involved in electricity generation and distribution globally.
+FMC1.F,Consumer-Discretionary,Automobiles,Germany,Ford Motor Company (listada na bolsa de Frankfurt),Consumer Discretionary,Automobile Manufacturers,
+LOM.F,Industrials,United States,Lockheed Martin Corporation,,Other,Other,
+NESN.SW,Consumer-Staples,Food & Beverage,Switzerland,Nestlé S.A.,Consumer Staples,Food Products,
+NOS.LS,Communication-Services,Telecom,Portugal,NOS SGPS S.A.,Communication Services,Telecommunication Services,"Portuguese telecommunications and media company providing TV, internet and mobile services."
+RED.MC,Utilities,Electricity Transmission,Spain,Redeia Corporación S.A.,Utilities,Electric Utilities,"Spanish operator of the national electricity grid, formerly Red Eléctrica de España."
+RUI.PA,Energy,Gas Storage & Distribution,France,Rubis SCA,Other,Other,French energy infrastructure company focused on storage and distribution of petroleum products.
+STLAM.MI,Consumer-Discretionary,Automobiles,Netherlands (operador global),Stellantis N.V.,Consumer Discretionary,Automobile Manufacturers,"Multinational automotive manufacturing company headquartered in the Netherlands, resulting from Fiat-Chrysler and PSA Group merger."
+TXN,Information-Technology,Semiconductors & Electronics,United States,Texas Instruments Incorporated,Information Technology,Semiconductors,"US-based technology company known for designing and manufacturing semiconductors, including analog chips and embedded processors."
+UNVB.DE,Consumer-Staples,Household & Personal Care,Germany,Unilever PLC,Consumer Staples,Household Products,"German listing of Unilever PLC, a British-Dutch multinational consumer goods company producing food, cleaning agents, and personal care products."
+LDO.MI,Industrials,Italy,Leonardo S.p.A.,,Other,Other,"Italian aerospace, defense and security company with operations in helicopters, electronics, and space systems."
+THLEF,Industrials,France,Thales S.A. (OTC ADR),,Other,Other,"French multinational specializing in defense, aerospace, and digital security technologies."
+ELE.MC,Utilities,Electricity & Gas,Spain,Endesa S.A.,Utilities,Multi-Utilities,
+TEP.PA,Industrials,Business Services,France,Teleperformance SE,Industrials,Professional Services,French multinational providing outsourced customer experience management and business process outsourcing services.
+MFEA.MI,Communication-Services,Broadcasting,Italy,MFE‑MediaForEurope N.V.,Communication Services,Media,
+PST.MI,Financials,Italy,Poste Italiane S.p.A.,,Other,Other,
+MELE.BR,Information-Technology,Semiconductors,Belgium,Melexis N.V.,Information Technology,Semiconductors,
+PRY.MI,Materials,Energy Infrastructure,Italy,Prysmian S.p.A.,Energy,"Oil, Gas & Consumable Fuels",
+GTR.F,Consumer-Discretionary,Tires,United States,Goodyear Tire & Rubber Company,Consumer Discretionary,Auto Parts & Equipment,"US-based tire and rubber company known globally as Goodyear, serving passenger and commercial vehicles."
+2PI.F,Consumer-Discretionary,Tires,Italy,Pirelli & C. S.p.A.,Consumer Discretionary,Auto Parts & Equipment,"German listing of Pirelli, the Italian tire manufacturer specialized in premium and racing tires."
+MCP.F,Information-Technology,Semiconductors,United States,Microchip Technology Inc.,Information Technology,Semiconductors,
+VNX.F,Information-Technology,Semiconductors,Netherlands,NXP Semiconductors N.V.,Information Technology,Semiconductors,
+ALD.DE,Consumer-Discretionary,Fleet Leasing,France ou Germany,ALD Automotive (Société Générale),Other,Other,
+LRC.F,Industrials,Building & Electrical Infrastructure,France,Legrand S.A.,Industrials,Electrical Equipment,
+5UR.BE,Industrials,Aerospace & Defense,United States,RTX Corporation,Industrials,Aerospace & Defense,
+1KT.F,Information-Technology,Scientific & Technical Instruments,United States,Keysight Technologies Inc.,Information Technology,"Electronic Equipment, Instruments & Components",
+1GE.MI,Industrials,United States,General Electric Company (listada em Milão),,Other,Other,
+T,Communication-Services,Telecom,United States,AT&T Inc.,Communication Services,Telecommunication Services,
+MMM.DE,Industrials,Diversified Industrials,United States,3M Company (listada em Xetra),Industrials,Industrial Conglomerates,
+AG8.F,HealthCare,Life Sciences Instruments,United States,Agilent Technologies Inc.,Health Care,Life Sciences Tools & Services,
+ADS.DE,Consumer-Discretionary,Apparel & Footwear,Germany,adidas AG,Consumer Discretionary,"Textiles, Apparel & Luxury Goods",
+PUM.DE,Consumer-Discretionary,Apparel & Footwear,Germany,PUMA SE,Consumer Discretionary,"Textiles, Apparel & Luxury Goods",
+BMW.DE,Consumer-Discretionary,Automobiles & Motorcycles,Germany,Bayerische Motoren Werke AG (BMW),Consumer Discretionary,Automobile Manufacturers,
+ZFIN.F,Financials,Insurance,Switzerland,Zurich Insurance Group AG,Financials,Insurance,"German listing of Zurich Insurance Group, a global insurer based in Switzerland offering life and property coverage."
+CMAB.F,Financials,Insurance,Spain,Mapfre S.A.,Financials,Insurance,
+ASME.DE,Information-Technology,Semiconductors,Netherlands,ASML Holding N.V.,Information Technology,Semiconductors,"German listing of ASML, major supplier of photolithography systems for the semiconductor industry."
+G.MI,Financials,Multi-line Insurance,Italy,Assicurazioni Generali S.p.A.,Other,Other,
+KBX.DE,Industrials,Rail & Commercial Vehicle Systems,Germany,Knorr‑Bremse AG,Industrials,Machinery,
+PYT.VI,Industrials,Automotive Plastics,Austria ou Germany,Polytec Holding AG,Other,Other,
+TIFS.L,Consumer-Discretionary,Auto Parts,United Kingdom,TI Fluid Systems plc,Consumer Discretionary,Auto Parts & Equipment,
+FPE3.DE,Materials,Specialty Chemicals,Germany,Fuchs Petrolub SE Pref.,Materials,Chemicals,
+RHM.DE,Industrials,Defense & Security,Germany,Rheinmetall AG,Industrials,Aerospace & Defense,
+ATI.PA,Materials,Specialty Metals & Components,United States,Allegheny Technologies Incorporated,Materials,Metals & Mining,
+SHA.DE,HealthCare,Medical Equipment,Germany,Siemens Healthineers AG,Health Care,Health Care Equipment,
+VOLV-B.ST,Industrials,Commercial Vehicles,Sweden,AB Volvo (Series B),Industrials,Machinery,"Swedish manufacturer of commercial vehicles including trucks, buses and construction equipment."
+SHL.DE,HealthCare,Diagnostics & Imaging,Germany,Siemens Healthineers AG,Health Care,Health Care Equipment,"German health technology firm Siemens Healthineers, offering diagnostic imaging and laboratory diagnostics."
+EKTA-B.ST,HealthCare,Medical Devices,Sweden,Elekta AB (publ),Health Care,Health Care Equipment,
+EL.PA,Utilities,Electricity,France,Electricité de France S.A. (EDF),Utilities,Electric Utilities,
+MDT,HealthCare,Medical Equipment & Devices,United States,Medtronic plc,Health Care,Health Care Equipment,"One of the world’s largest medical technology companies, headquartered in Ireland with operational centers in the US."
+TMO,HealthCare,Life Sciences & Lab Equipment,United States,Thermo Fisher Scientific Inc.,Health Care,Life Sciences Tools & Services,"US life sciences company offering scientific instruments, reagents and laboratory services for healthcare and research."
+BA.L,Industrials,United Kingdom,BAE Systems plc,,Other,Other,"British defense, aerospace and security company supplying military hardware and systems globally."
+HO.PA,Industrials,France,Thales S.A.,,Other,Other,
+LMT,Industrials,United States,Lockheed Martin Corporation,,Other,Other,"US-based global security and aerospace company primarily engaged in defense, aeronautics and space systems."
+GD,Industrials,United States,General Dynamics Corporation,,Other,Other,"Major US defense contractor involved in aerospace, shipbuilding, and IT systems for government agencies."
+TRN.MI,Utilities,Electricity Transmission,Italy,Terna Rete Elettrica Nazionale S.p.A.,Utilities,Electric Utilities,
+RENE.LS,Utilities,Electricity & Gas,Portugal,"REN – Redes Energéticas Nacionais, SGPS S.A.",Utilities,Multi-Utilities,Portuguese company responsible for electricity and gas transmission infrastructure.
+SRG.MI,Utilities,Natural Gas Infrastructure,Italy,Snam S.p.A.,Other,Other,"Italy's leading natural gas infrastructure company, managing transmission, storage and regasification assets."
+ENGI.PA,Utilities,Multiline Utilities,France,Engie S.A.,Utilities,Multi-Utilities,"French multinational utility company focused on electricity, gas, renewable energy and energy services."
+SVT.L,Utilities,Electricity Transmission,United Kingdom,Scottish & Southern Energy plc (SSE),Utilities,Electric Utilities,
+CLNX.MC,Communication-Services,Telecom Infrastructure,Spain,Cellnex Telecom S.A.,Communication Services,Wireless Telecommunication Services,"Spain’s leading wireless telecommunications infrastructure operator, managing broadcast and telecom towers across Europe."
+DPW.DE,Industrials,Integrated Logistics & Freight, Germany,Deutsche Post AG (DHL Group),Other,Other,"German logistics and courier company globally known as DHL Group, providing parcel, freight and supply chain solutions."
+SU.PA,Industrials,Industrial Automation & Energy Management,France,Schneider Electric S.E.,Industrials,Industrial Conglomerates,French global specialist in energy management and industrial automation systems.
+SIE.DE,Industrials,Industrial Conglomerates & Automation, Germany,Siemens AG,Industrials,Industrial Conglomerates,"German multinational conglomerate operating in industrial automation, digitalization, infrastructure and mobility sectors."
+FCT.MI,Industrials,Shipbuilding & Marine Systems,Italy,Fincantieri S.p.A.,Industrials,Marine,"Italy’s largest shipbuilder, producing military vessels, cruise ships and offshore units."
+HLAG.DE,Industrials,Marine Shipping,Germany,Hapag‑Lloyd AG,Industrials,Marine,"German company and one of the world’s largest shipping lines, providing container transportation worldwide."
+ACS.MC,Industrials,Construction & Engineering,Spain,ACS Actividades de Construcción y Servicios S.A.,Industrials,Construction & Engineering,Spanish infrastructure and construction services company with global operations including highway concessions and civil projects.
+DG.PA,Energy,Oil & Gas,France,TotalEnergies SE,Energy,"Oil, Gas & Consumable Fuels",
+HOT.DE,Industrials,Construction & Engineering,Germany,HOCHTIEF Aktiengesellschaft,Industrials,Construction & Engineering,"German construction firm HOCHTIEF, active in infrastructure and civil engineering worldwide."
+SKA-B.ST,Industrials,Construction & Project Development,Sweden,Skanska AB (publ),Industrials,Construction & Engineering,Swedish multinational construction and project development company operating in Europe and North America.
+KGX.DE,Industrials,Capital Goods & Material Handling,Germany,KION Group AG,Industrials,Machinery,
+SOI.PA,Information-Technology,Semiconductors (Materials & Wafers),France,Soitec S.A.,Information Technology,Semiconductor Materials,
+PLTR,Information-Technology,Software & Big Data,United States,Palantir Technologies Inc.,Information Technology,Software,US software company specializing in big data analytics and defense intelligence platforms.
+BOL.ST,Materials,Metals & Mining,Sweden,Boliden AB,Materials,Metals & Mining,Swedish mining and metals company specializing in exploration and recycling of base and precious metals.
+CEG,Utilities,Integrated Energy,United States,Constellation Energy Corp.,Utilities,Multi-Utilities,"US electric power generation company focused on clean and nuclear energy, a spin-off from Exelon Corporation."
+ISRG,HealthCare,Medical Robotics,United States,"Intuitive Surgical, Inc.",Health Care,Health Care Equipment,"US-based leader in robotic-assisted surgery systems, best known for the da Vinci Surgical System."
+DSY.PA,Information-Technology,Software – 3D Design & PLM,France,Dassault Systèmes SE,Information Technology,Software,
+ASML.AS,Information-Technology,Semiconductors Equipment,Netherlands,ASML Holding N.V.,Information Technology,Semiconductor Equipment,Dutch multinational that manufactures advanced photolithography equipment for the semiconductor industry; listed on Euronext Amsterdam.
+MRNA,HealthCare,Biotechnology – mRNA Medicines,United States,"Moderna, Inc.",Health Care,Biotechnology,"American biotech company focused on mRNA-based vaccines and therapeutics, including the COVID-19 vaccine."
