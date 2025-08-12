@@ -1,8 +1,5 @@
 import panel as pn
-# from .kpi import ...
-# from .config import ...
-# from .plots import ...
-from dashboard.kpi import kpi_group_panel, kpi_date_panel
+from dashboard.kpi import kpi_group_panel, kpi_date_panel, compute_custom_kpis   # add compute_custom_kpis
 from dashboard.config import FIXED_SECTORS, FIXED_COUNTRIES, KPI_GROUPS
 from dashboard.plots import lines, bars, heatmaps, radars
 
@@ -23,6 +20,8 @@ def build_layout(state, widgets):
 
     sector_alloc_pane, sector_alloc_fig = radars.sector_allocation(state, FIXED_SECTORS)
     country_alloc_pane, country_alloc_fig = radars.country_allocation(state, FIXED_COUNTRIES)
+
+    custom_kpis = compute_custom_kpis(state, state.kpis)
 
     # Chart specs for export (name, figure-factory)
     chart_specs = [
@@ -51,10 +50,11 @@ def build_layout(state, widgets):
             symbol_selector
         ],
         main=[
-            lambda: kpi_date_panel(state.kpis),
-            lambda: kpi_group_panel(state.kpis, "Capital KPIs", KPI_GROUPS["Capital KPIs"]),
-            lambda: kpi_group_panel(state.kpis, "Dividend KPIs", KPI_GROUPS["Dividend KPIs"]),
-            lambda: kpi_group_panel(state.kpis, "Performance KPIs", KPI_GROUPS["Performance KPIs"]),
+            lambda: kpi_date_panel(state.kpis),  # keep original date range display
+            # --- show only the NEW groups now ---
+            lambda: kpi_group_panel(custom_kpis, "Capital KPIs", KPI_GROUPS["Capital KPIs"]),
+            lambda: kpi_group_panel(custom_kpis, "Dividend KPIs", KPI_GROUPS["Dividend KPIs"]),
+            # [the rest unchanged...]
             pn.Column(
                 pn.pane.Markdown("### Portfolio Overview"),
                 total_value_pane,

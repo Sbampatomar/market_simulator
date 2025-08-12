@@ -36,61 +36,36 @@ CRAMERI = sorted([
 ])
 
 
-# KPI groupings (moved verbatim)
+# --- NEW KPI GROUPS (phase 1) ---
 KPI_GROUPS = {
     "Capital KPIs": [
-        "Initial investment",
-        "Total investments (initial + investment_plan)",
-        "Final portfolio value",
-        "Final total stocks count",
-        "Final gain/loss absolute",
-        "Final gain/loss percentual",
-        "Capital gain if realized (last date)",
-        "Capital gain tax if realized",
-        "Capital gain (net)",
-        "Total broker fees paid",
-        "Max Drawdown"
+        "[A] Money invested",
+        "[B] Total invested",
+        "[C] Portfolio final value",
+        "[D] Portfolio gain/loss (absolute)",
+        "[E] Portfolio gain/loss (percentual)"
     ],
     "Dividend KPIs": [
-        "Total dividends generated (gross)",
-        "Total dividends generated (net)",
-        "Total dividends reinvested",
-        "Remaining dividend pot",
-        "Last year generated dividend (net)",
-        "YTD generated dividend (net)",
-        "Total payed taxes on dividends",
-        "Dividend payed tax / gain ratio"
-    ],
-    "Performance KPIs": [
-        "Portfolio XIRR",
-        "YTD gain/loss absolute",
-        "Last month gain/loss absolute"
+        "[F] Total generated dividends (gross)",
+        "[G] Total income dividends (net)",
+        "[H] Reinvested dividends",
+        "[I] Remaining dividend pot",
+        "[J] Last year dividends (net)",
+        "[K] YTD dividends (net, trailing 365 days)"
     ]
 }
 
 KPI_EXPLANATIONS = {
-    "Initial investment": "The initial capital invested at simulation start.",
-    "Total investments (initial + investment_plan)": "Sum of initial and scheduled investments.",
-    "Final portfolio value": "Portfolio value at simulation end.",
-    "Final total stocks count": "Total shares held across all stocks.",
-    "Final gain/loss absolute": "Net profit or loss in euros.",
-    "Final gain/loss percentual": "Net profit or loss in percent.",
-    "Capital gain if realized (last date)": "Unrealized gain if all sold at final date.",
-    "Capital gain tax if realized": "Estimated taxes on full liquidation.",
-    "Capital gain (net)": "Gain after taxes if realized.",
-    "Total broker fees paid": "Sum of all broker commissions.",
-    "Max Drawdown": "Largest observed portfolio value drop.",
+    "[A] Money invested": "External capital only (initial + investment plan), excluding fees/taxes and excluding reinvestments.",
+    "[B] Total invested": "External capital plus dividend reinvestments.",
+    "[C] Portfolio final value": "Sum of the market value of all shares at the last simulation date.",
+    "[D] Portfolio gain/loss (absolute)": "C − B.",
+    "[E] Portfolio gain/loss (percentual)": "(D / B) × 100%.",
 
-    "Total dividends generated (gross)": "Total dividends before tax.",
-    "Total dividends generated (net)": "Total dividends after tax.",
-    "Total dividends reinvested": "Portion of dividends reinvested.",
-    "Remaining dividend pot": "Undeployed dividends left at end.",
-    "Last year generated dividend (net)": "Dividends received in the last year.",
-    "YTD generated dividend (net)": "Dividends received year-to-date.",
-    "Total payed taxes on dividends": "Cumulative dividend taxes.",
-    "Dividend payed tax / gain ratio": "Tax on dividends over total gain (%).",
-
-    "Portfolio XIRR": "Annualized internal rate of return.",
-    "YTD gain/loss absolute": "Net profit/loss from January 1st to end date.",
-    "Last month gain/loss absolute": "Net profit/loss of the last month."
+    "[F] Total generated dividends (gross)": "Sum of all gross dividends generated.",
+    "[G] Total income dividends (net)": "Sum of all net dividends received (after dividend taxes).",
+    "[H] Reinvested dividends": "Total amount of dividends used to buy shares.",
+    "[I] Remaining dividend pot": "Dividends received but not reinvested by the end.",
+    "[J] Last year dividends (net)": "Net dividends in the prior full calendar year (Jan–Dec).",
+    "[K] YTD dividends (net, trailing 365 days)": "Net dividends over the last 365 days ending at the final simulation date."
 }
