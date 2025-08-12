@@ -40,8 +40,6 @@ def run_simulation(start_date=None, end_date=None, reinvestment_threshold=None):
         logging.warning("Monthly reinvestment is enabled, but no reinvestment targets were provided.")
 
     all_symbols = sorted(set(tx_df['symbol']) | set(plan_df['symbol']) | set(reinvest_weights.keys()))
-    start_date = pd.to_datetime(START_DATE)
-    end_date = pd.to_datetime(END_DATE)
 
     trading_days = pd.DatetimeIndex(sorted(set.union(*(set(df.index) for df in price_data.values()))))
     trading_days = trading_days[(trading_days >= start_date) & (trading_days <= end_date)]
