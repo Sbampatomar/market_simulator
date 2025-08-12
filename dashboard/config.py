@@ -6,44 +6,32 @@ DATA_DIR  = Path("output")
 INPUT_DIR = Path("input")
 KPI_FILE  = DATA_DIR / "output_kpis.txt"
 
-# Fixed categories (keep your current lists)
-FIXED_SECTORS = [
-    "Energy", "Materials", "Industrials", "Consumer-Discretionary", "Consumer-Staples",
-    "HealthCare", "Financials", "Information-Technology", "Communication-Services", "Utilities"
-]
-FIXED_COUNTRIES = [
-    "Italy", "Germany", "Spain", "France", "Portugal",
-    "United Kingdom", "USA", "Belgium", "Switzerland", "Austria"
-]
-
-# Color maps
-#ALL_CMAPS = {n: getattr(cc.cm, n) for n in dir(cc.cm) if not n.startswith("_") and callable(getattr(cc.cm, n))}
-#CRAMERI = sorted([n for n in ALL_CMAPS if "rainbow" not in n and "glasbey" not in n])
-
-#ALL_CMAPS = [n for n in dir(cc.cm) if not n.startswith("_")]
-# Exclude only obvious families; leave the rest
-#CRAMERI = sorted([n for n in ALL_CMAPS if "glasbey" not in n and "rainbow" not in n])
-# Prefer the stable palette registry (hex lists), then filter
+# Palette registry (robust across colorcet versions)
 try:
     PALETTE_REGISTRY = dict(getattr(cc, "palette", {}))
 except Exception:
     PALETTE_REGISTRY = {}
 
-# Keep only scientific, non-glasbey, non-rainbow
 CRAMERI = sorted([
     name for name in PALETTE_REGISTRY.keys()
     if "glasbey" not in name.lower() and "rainbow" not in name.lower()
 ])
 
-
-# --- NEW KPI GROUPS (phase 1) ---
+# --- KPI GROUPS (adds Performance KPIs) ---
 KPI_GROUPS = {
+    "General KPIs": [
+        "[P] Portfolio total stocks",
+        "[Q] Total invested [B]",
+        "[R] Portfolio final value [C]",
+        "[S] Total income dividends (net) [G]",
+        "[T] Investment Gains (net)",
+        "[U] Investment Gains / Total Invested"
+    ],
     "Capital KPIs": [
-        "[A] Money invested",
-        "[B] Total invested",
+        "[A] External cash invested",
+        "[B] Capital deployed (A + H)",
         "[C] Portfolio final value",
-        "[D] Portfolio gain/loss (absolute)",
-        "[E] Portfolio gain/loss (percentual)"
+        "[D] Portfolio gain/loss"
     ],
     "Dividend KPIs": [
         "[F] Total generated dividends (gross)",
@@ -52,20 +40,55 @@ KPI_GROUPS = {
         "[I] Remaining dividend pot",
         "[J] Last year dividends (net)",
         "[K] YTD dividends (net, trailing 365 days)"
+    ],
+    "Taxes/Fees KPIs": [
+        "[L] Realized capital gain tax (26%)",
+        "[M] Total dividends tax",
+        "[N] Dividend tax / total dividends",
+        "[O] Total broker fees paid"
+    ],
+    "Performance KPIs": [
+        "[PX] Portfolio XIRR",
+        "[PY] YTD gain/loss absolute",
+        "[PQ] Last quarter gain/loss absolute",
+        "[PM] Last month gain/loss absolute",
+        "[PD] Max Drawdown"
     ]
 }
 
 KPI_EXPLANATIONS = {
-    "[A] Money invested": "External capital only (initial + investment plan), excluding fees/taxes and excluding reinvestments.",
-    "[B] Total invested": "External capital plus dividend reinvestments.",
-    "[C] Portfolio final value": "Sum of the market value of all shares at the last simulation date.",
-    "[D] Portfolio gain/loss (absolute)": "C − B.",
-    "[E] Portfolio gain/loss (percentual)": "(D / B) × 100%.",
+    # General
+    "[P] Portfolio total stocks": "Total number of shares at the final simulation date (sum across symbols).",
+    "[Q] Total invested [B]": "Capital deployed = external cash + reinvested dividends.",
+    "[R] Portfolio final value [C]": "Market value of all holdings at the final date.",
+    "[S] Total income dividends (net) [G]": "Net dividends received across the full simulation.",
+    "[T] Investment Gains (net)": "((C − B) + I) − O: net portfolio gain after dividend pot and broker fees.",
+    "[U] Investment Gains / Total Invested": "T divided by B, expressed in percent.",
 
-    "[F] Total generated dividends (gross)": "Sum of all gross dividends generated.",
-    "[G] Total income dividends (net)": "Sum of all net dividends received (after dividend taxes).",
-    "[H] Reinvested dividends": "Total amount of dividends used to buy shares.",
-    "[I] Remaining dividend pot": "Dividends received but not reinvested by the end.",
+    # Capital
+    "[A] External cash invested": "Out-of-pocket capital (initial + plan), excludes dividend reinvestments.",
+    "[B] Capital deployed (A + H)": "External cash plus reinvested dividends used to buy shares.",
+    "[C] Portfolio final value": "Market value of all holdings at the final date.",
+    "[D] Portfolio gain/loss": "Absolute gain/loss with percentage in parentheses, calculated vs external cash invested.",
+
+    # Dividends
+    "[F] Total generated dividends (gross)": "Sum of gross dividends.",
+    "[G] Total income dividends (net)": "Sum of net dividends received.",
+    "[H] Reinvested dividends": "Dividends used to buy shares.",
+    "[I] Remaining dividend pot": "Unreinvested dividends at the end.",
     "[J] Last year dividends (net)": "Net dividends in the prior full calendar year (Jan–Dec).",
-    "[K] YTD dividends (net, trailing 365 days)": "Net dividends over the last 365 days ending at the final simulation date."
+    "[K] YTD dividends (net, trailing 365 days)": "Net dividends over the last 365 days.",
+
+    # Taxes/Fees
+    "[L] Realized capital gain tax (26%)": "Hypothetical tax at 26% applied to positive portfolio gain/loss.",
+    "[M] Total dividends tax": "Cumulative taxes paid on dividends.",
+    "[N] Dividend tax / total dividends": "Dividend-tax-to-gross-dividends ratio.",
+    "[O] Total broker fees paid": "Sum of all broker commissions.",
+
+    # Performance
+    "[PX] Portfolio XIRR": "Annualized internal rate of return for the whole simulation.",
+    "[PY] YTD gain/loss absolute": "Year-to-date absolute P/L (net of external contributions).",
+    "[PQ] Last quarter gain/loss absolute": "Absolute P/L over the last 3 full months (net of external contributions).",
+    "[PM] Last month gain/loss absolute": "Absolute P/L over the last full month (net of external contributions).",
+    "[PD] Max Drawdown": "Largest peak-to-trough drop over the period."
 }
