@@ -11,13 +11,12 @@ def make_widgets(state):
     )
     date_range.param.watch(lambda e: setattr(state, "date_range", e.new), 'value')
 
-    # --- Heatmap palette: define allowed values, default, then sync state ---
+    # Heatmap palette (robust defaults)
     palette_label_map = {name.capitalize(): name for name in (CRAMERI or [])}
     if palette_label_map:
         palette_values = list(palette_label_map.values())
         default_palette = "imola" if "imola" in palette_values else palette_values[0]
     else:
-        # Fallback if CRAMERI is empty
         palette_label_map = {"Viridis": "viridis"}
         palette_values = ["viridis"]
         default_palette = "viridis"
@@ -27,12 +26,8 @@ def make_widgets(state):
         options=palette_label_map,
         value=default_palette
     )
-
-    # IMPORTANT: register allowed values on the Param selector BEFORE setting value
     state.param['heatmap_palette'].objects = palette_values
-    state.heatmap_palette = default_palette  # assign a valid default
-
-    # keep state in sync if user changes widget
+    state.heatmap_palette = default_palette
     heatmap_palette.param.watch(lambda e: setattr(state, "heatmap_palette", e.new), 'value')
 
     # Symbols
@@ -43,4 +38,13 @@ def make_widgets(state):
     )
     symbol_selector.param.watch(lambda e: setattr(state, 'symbols', e.new), 'value')
 
-    return date_range, heatmap_palette, symbol_selector
+    # NEW: Daily/Monthly toggle for the "Invested vs Value" chart
+    view_mode_toggle = pn.widgets.RadioButtonGroup(
+        name="Portfolio View Mode",
+        options=["daily", "monthly"],
+        value="daily",
+        button_type="primary"
+    )
+
+    # Return all widgets (note: layout.py expects 4 items now)
+    return date_range, heatmap_palette, symbol_selector, view_mode_toggle
