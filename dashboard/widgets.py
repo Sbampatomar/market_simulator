@@ -1,50 +1,103 @@
+# dashboard/widgets.py
+# Cria os widgets e conecta seus valores ao "state" (date_range, selected_symbols).
+# Retorna: (date_range, heatmap_palette, symbol_selector, view_mode_toggle)
+
 import panel as pn
-from dashboard.config import CRAMERI
+import pandas as pd
+from dashboard.plots import heatmaps
+
+def _detect_symbol_list(state):
+    # Preferência: state.symbols (se você já popula isso no State)
+    symbols = getattr(state, "symbols", None)
+    if symbols:
+        return list(symbols)
+
+    # Tenta monthly_div_by_symbol
+    mdbs = getattr(state, "monthly_div_by_symbol", None)
+    if mdbs is not None and len(mdbs) > 0:
+        return list(mdbs.columns)
+
+    # Tenta daily_df por colunas qty_*
+    daily = getattr(state, "daily_df", None)
+    if daily is not None and len(daily) > 0:
+        qty_cols = [c for c in daily.columns if c.startswith("qty_")]
+        if qty_cols:
+            return [c.replace("qty_", "") for c in qty_cols]
+
+    return []
 
 def make_widgets(state):
-    # Date range
-    date_range = pn.widgets.DateRangeSlider(
-        name='Date Range',
-        start=state.daily_df.index.min(),
-        end=state.daily_df.index.max(),
-        value=state.date_range
-    )
-    date_range.param.watch(lambda e: setattr(state, "date_range", e.new), 'value')
+    pn.extension()
 
-    # Heatmap palette (robust defaults)
-    palette_label_map = {name.capitalize(): name for name in (CRAMERI or [])}
-    if palette_label_map:
-        palette_values = list(palette_label_map.values())
-        default_palette = "imola" if "imola" in palette_values else palette_values[0]
+    # ---------------- Date range slider ----------------
+    daily = getattr(state, "daily_df", None)
+    if daily is not None and len(daily) > 0:
+        idx_min = pd.to_datetime(daily.index.min())
+        idx_max = pd.to_datetime(daily.index.max())
     else:
-        palette_label_map = {"Viridis": "viridis"}
-        palette_values = ["viridis"]
-        default_palette = "viridis"
+        idx_max = pd.Timestamp.today().normalize()
+        idx_min = idx_max - pd.DateOffset(months=12)
+
+    # valor inicial: últimos 12 meses (ou todo o período, se preferir)
+    init_start = max(idx_min, idx_max - pd.DateOffset(months=12))
+    init_end = idx_max
+
+    date_range = pn.widgets.DateRangeSlider(
+        name="Period",
+        start=idx_min,
+        end=idx_max,
+        value=(init_start, init_end),
+        step=24*60*60*1000,  # 1 dia em ms
+    )
+
+    # Sincroniza no state
+    if not hasattr(state, "date_range"):
+        state.date_range = (init_start, init_end)
+
+    def _on_date_change(event):
+        state.date_range = (pd.to_datetime(event.new[0]), pd.to_datetime(event.new[1]))
+
+    date_range.param.watch(_on_date_change, "value")
+
+    # ---------------- Palette Select ----------------
+    palette_options = list(heatmaps.PALETTES.keys())
+    default_palette = "Viridis" if "Viridis" in heatmaps.PALETTES else (palette_options[0] if palette_options else None)
 
     heatmap_palette = pn.widgets.Select(
-        name="Heatmap Palette (Scientific - Crameri)",
-        options=palette_label_map,
-        value=default_palette
+        name="Color palette",
+        options=palette_options,
+        value=default_palette,
     )
-    state.param['heatmap_palette'].objects = palette_values
-    state.heatmap_palette = default_palette
-    heatmap_palette.param.watch(lambda e: setattr(state, "heatmap_palette", e.new), 'value')
 
-    # Symbols
-    symbol_selector = pn.widgets.CheckBoxGroup(
-        name="Select Symbols",
-        options=state.param['symbols'].objects,
-        value=state.symbols
+    # ---------------- Symbols selector ----------------
+    symbols = _detect_symbol_list(state)
+    default_symbols = symbols[: min(8, len(symbols))] if symbols else []
+
+    symbol_selector = pn.widgets.CheckButtonGroup(
+        name="Symbols",
+        options=symbols,
+        value=default_symbols,
+        button_type="default",
+        orientation="vertical",
+        sizing_mode="stretch_width",
     )
-    symbol_selector.param.watch(lambda e: setattr(state, 'symbols', e.new), 'value')
 
-    # NEW: Daily/Monthly toggle for the "Invested vs Value" chart
+    # Propaga para o state
+    if not hasattr(state, "selected_symbols"):
+        state.selected_symbols = list(default_symbols)
+
+    def _on_symbols_change(event):
+        state.selected_symbols = list(event.new)
+
+    symbol_selector.param.watch(_on_symbols_change, "value")
+
+    # ---------------- View mode (overview charts) ----------------
+    # Valores usados diretamente pelo módulo lines: "daily" ou "monthly"
     view_mode_toggle = pn.widgets.RadioButtonGroup(
-        name="Portfolio View Mode",
+        name="View mode",
         options=["daily", "monthly"],
         value="daily",
         button_type="primary"
     )
 
-    # Return all widgets (note: layout.py expects 4 items now)
     return date_range, heatmap_palette, symbol_selector, view_mode_toggle

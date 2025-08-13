@@ -1,48 +1,65 @@
 # dashboard/layout.py
+# Template principal com heatmaps reativos via pn.bind (sem mutação in-place)
+
 import panel as pn
 from dashboard.kpi import kpi_group_panel, kpi_date_panel, compute_custom_kpis
 from dashboard.config import KPI_GROUPS
 from dashboard.plots import lines, bars, heatmaps, radars
 
 def build_layout(state, widgets):
-    # Unpack widgets (order must match widgets.make_widgets)
+    """
+    widgets.make_widgets(state) deve retornar, nesta ordem:
+        (date_range, heatmap_palette, symbol_selector, view_mode_toggle)
+    """
     date_range, heatmap_palette, symbol_selector, view_mode_toggle = widgets
 
-    # --- Charts that depend on the toggle (both overview charts) ---
-    total_value_pane, total_value_fig = lines.total_portfolio_value(state, mode=view_mode_toggle.value)
-    inv_vs_val_pane, inv_vs_val_fig = lines.invested_vs_value(state, mode=view_mode_toggle.value)
+    # ---------------------------------------------------------------------
+    # Overview charts (reativos ao toggle daily/monthly)
+    # ---------------------------------------------------------------------
+    total_value_pane, _ = lines.total_portfolio_value(state, mode=view_mode_toggle.value)
+    inv_vs_val_pane, _ = lines.invested_vs_value(state, mode=view_mode_toggle.value)
 
     def _on_mode_change(event):
-        # Rebuild both overview charts in the selected mode
         _, total_fig = lines.total_portfolio_value(state, mode=event.new)
         total_value_pane.object = total_fig
-
         _, inv_fig = lines.invested_vs_value(state, mode=event.new)
         inv_vs_val_pane.object = inv_fig
 
     view_mode_toggle.param.watch(_on_mode_change, "value")
 
-    # --- Other charts (unchanged) ---
-    monthly_irr_pane, monthly_irr_fig = bars.monthly_irr(state)
-    ltm_total_div_pane, ltm_total_div_fig = bars.dividends_last_12m_total(state)
-    ltm_by_symbol_pane, ltm_by_symbol_fig = bars.dividends_by_symbol_last_12m(state)
+    # ---------------------------------------------------------------------
+    # Barras (mantidos como estão)
+    # ---------------------------------------------------------------------
+    monthly_irr_pane, _ = bars.monthly_irr(state)
+    ltm_total_div_pane, _ = bars.dividends_last_12m_total(state)
+    ltm_by_symbol_pane, _ = bars.dividends_by_symbol_last_12m(state)
 
-    heatmap_full_pane, heatmap_full_fig = heatmaps.dividends_full(state)
-    heatmap_recent_pane, heatmap_recent_fig = heatmaps.dividends_recent(state)
+    # ---------------------------------------------------------------------
+    # HEATMAPS reativos à paleta — usando pn.bind (recomendada)
+    #   1) Calendar heatmap (FULL period): X=Jan..Dec, Y=Years
+    #   2) Monthly totals (respect date_range)
+    # ---------------------------------------------------------------------
+    calendar_view = pn.bind(
+        lambda palette: heatmaps.monthly_dividends_calendar(state, palette)[1],
+        palette=heatmap_palette
+    )
+    month_total_view = pn.bind(
+        lambda palette: heatmaps.dividends_by_month_total(state, palette)[1],
+        palette=heatmap_palette
+    )
 
-    def _on_palette_change(event):
-        nonlocal heatmap_full_fig, heatmap_recent_fig
-        _, heatmap_full_fig = heatmaps.dividends_full(state)
-        heatmap_full_pane.object = heatmap_full_fig
-        _, heatmap_recent_fig = heatmaps.dividends_recent(state)
-        heatmap_recent_pane.object = heatmap_recent_fig
+    calendar_pane = pn.pane.Plotly(calendar_view, config={"responsive": True}, sizing_mode="stretch_width")
+    month_total_pane = pn.pane.Plotly(month_total_view, config={"responsive": True}, sizing_mode="stretch_width")
 
-    state.param.watch(_on_palette_change, "heatmap_palette")
-
+    # ---------------------------------------------------------------------
+    # Radars / alocações
+    # ---------------------------------------------------------------------
     sector_alloc_pane, sector_alloc_fig = radars.sector_allocation(state)
     country_alloc_pane, country_alloc_fig = radars.country_allocation(state)
 
-    # --- KPIs ---
+    # ---------------------------------------------------------------------
+    # KPIs
+    # ---------------------------------------------------------------------
     custom_kpis = compute_custom_kpis(state, state.kpis)
 
     template = pn.template.FastListTemplate(
@@ -51,35 +68,41 @@ def build_layout(state, widgets):
             "## Filters",
             date_range,
             pn.Spacer(height=32),
-            heatmap_palette,
+            heatmap_palette,         # <- o mesmo widget usado no bind
             pn.Spacer(height=32),
-            pn.pane.Markdown(""),   # placeholder for FileDownload button (app.py sets sidebar[5])
+            pn.pane.Markdown(""),    # placeholder para FileDownload (setado em app.py)
             pn.Spacer(height=32),
-            view_mode_toggle,       # Daily/Monthly toggle for overview charts
+            view_mode_toggle,        # Daily/Monthly para os overview charts
             pn.Spacer(height=16),
             symbol_selector
         ],
         main=[
+            # KPIs (lazy via lambda para refletir filtros atuais)
             lambda: kpi_date_panel(state.kpis),
             lambda: kpi_group_panel(custom_kpis, "General KPIs", KPI_GROUPS["General KPIs"]),
             lambda: kpi_group_panel(custom_kpis, "Capital KPIs", KPI_GROUPS["Capital KPIs"]),
             lambda: kpi_group_panel(custom_kpis, "Dividend KPIs", KPI_GROUPS["Dividend KPIs"]),
             lambda: kpi_group_panel(custom_kpis, "Taxes/Fees KPIs", KPI_GROUPS["Taxes/Fees KPIs"]),
             lambda: kpi_group_panel(custom_kpis, "Performance KPIs", KPI_GROUPS["Performance KPIs"]),
+
+            # Overview
             pn.Column(
                 pn.pane.Markdown("### Portfolio Overview"),
                 total_value_pane,
                 inv_vs_val_pane
             ),
+
+            # Dividendos (barras + heatmaps)
             pn.Column(
                 pn.pane.Markdown("### Dividend Metrics"),
-                # (keeping these as-is; we can also toggle them later if you want)
                 monthly_irr_pane,
                 ltm_total_div_pane,
                 ltm_by_symbol_pane,
-                heatmap_full_pane,
-                heatmap_recent_pane
+                calendar_pane,    # NEW calendar heatmap (full period)
+                month_total_pane  # Monthly totals (respects date_range)
             ),
+
+            # Alocações
             pn.Column(
                 pn.pane.Markdown("### Allocation Charts"),
                 pn.Row(sector_alloc_pane, country_alloc_pane)
@@ -87,16 +110,18 @@ def build_layout(state, widgets):
         ]
     )
 
-    # Export: render overview charts with the currently selected mode
+    # ---------------------------------------------------------------------
+    # Exportação (PDF etc.). Use lambdas que reconstroem as figuras no estado atual.
+    # ---------------------------------------------------------------------
     chart_specs = [
         ("Symbol Value Over Time", lambda: lines.symbol_values(state)[1]),
         ("Total Portfolio Value", lambda: lines.total_portfolio_value(state, mode=view_mode_toggle.value)[1]),
         ("Invested vs Portfolio Value", lambda: lines.invested_vs_value(state, mode=view_mode_toggle.value)[1]),
-        ("Monthly IRR", lambda: monthly_irr_fig),
-        ("Total Dividends - Last 12 Months", lambda: ltm_total_div_fig),
-        ("Dividends by Symbol - Last 12 Months", lambda: ltm_by_symbol_fig),
-        ("Dividend Heatmap - Full Period", lambda: heatmap_full_fig),
-        ("Dividend Heatmap - Last 12 Months", lambda: heatmap_recent_fig),
+        ("Monthly IRR", lambda: bars.monthly_irr(state)[1]),
+        ("Total Dividends - Last 12 Months", lambda: bars.dividends_last_12m_total(state)[1]),
+        ("Dividends by Symbol - Last 12 Months", lambda: bars.dividends_by_symbol_last_12m(state)[1]),
+        ("Monthly Dividends (Full Period)", lambda: heatmaps.monthly_dividends_calendar(state, palette=heatmap_palette.value)[1]),
+        ("Monthly Totals (Heatmap)", lambda: heatmaps.dividends_by_month_total(state, palette=heatmap_palette.value)[1]),
         ("Sector Allocation", lambda: sector_alloc_fig),
         ("Country Allocation", lambda: country_alloc_fig),
     ]
