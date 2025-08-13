@@ -102,6 +102,17 @@ def make_app():
     # Congela cópias "full" que não serão afetadas por filtros da UI
     initialize_full_history(state)
 
+    # DEBUG: columns + a quick peek at dates and non-null counts
+    print("daily_df_full columns:", list(state.daily_df_full.columns))
+    print(
+        "daily_df_full span:",
+        None if state.daily_df_full.empty else (state.daily_df_full.index.min(), state.daily_df_full.index.max())
+    )
+    print(
+        "non-null counts (top 25):",
+        state.daily_df_full.count().sort_values(ascending=False).head(25).to_dict()
+    )
+
     # Widgets e layout
     widgets = make_widgets(state)
     template, chart_specs = build_layout(state, widgets)

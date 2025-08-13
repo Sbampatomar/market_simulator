@@ -297,3 +297,204 @@ def monthly_dividends_calendar(state, palette: str):
     )
     pane = pn.pane.Plotly(fig, config={"responsive": True}, sizing_mode="stretch_width")
     return pane, fig
+
+def _get_portfolio_value_series(daily: pd.DataFrame) -> pd.Series | None:
+    """
+    Extract a portfolio-value time series from a daily dataframe, robustly.
+    Preference order:
+      (A) single total columns (clear 'portfolio value' signal)
+      (B) reconstruct from per-symbol value columns (+ cash if present)
+      (C) fallback: None
+    """
+    if not isinstance(daily, pd.DataFrame) or daily.empty:
+        return None
+
+    df = daily.copy()
+    if not isinstance(df.index, pd.DatetimeIndex):
+        df.index = pd.to_datetime(df.index, errors="coerce")
+    df = df.sort_index()
+
+    cols = list(df.columns)
+    low  = [c.lower() for c in cols]
+
+    # ---- (A) Try obvious single total columns ----
+    EXACTS = ['portfolio_value', 'total_value']  # add total_value
+    CONTAINS_ALL = [
+        ('portfolio', 'value'),
+        ('total', 'value'),
+        ('portfolio', 'equity'),
+        ('account', 'value'),
+        ('net', 'worth'),
+        ('nav',),  # Net Asset Value
+    ]
+
+    # exact match first
+    for name in EXACTS:
+        if name in low:
+            s = pd.to_numeric(df[cols[low.index(name)]], errors='coerce')
+            if s.notna().sum() > 0:
+                return s
+
+    # contains-all words (case-insensitive)
+    def _find_contains_all(words):
+        for c in cols:
+            lc = c.lower()
+            if all(w in lc for w in words):
+                s = pd.to_numeric(df[c], errors='coerce')
+                if s.notna().sum() > 0:
+                    return s
+        return None
+
+    for pat in CONTAINS_ALL:
+        s = _find_contains_all(pat)
+        if s is not None:
+            return s
+
+    # invested + gain (common pattern)
+    invested = None
+    gain = None
+    for c in cols:
+        lc = c.lower()
+        if invested is None and (('invested' in lc or 'invest' in lc) and 'value' in lc or lc == 'invested'):
+            invested = pd.to_numeric(df[c], errors='coerce')
+        if gain is None and ('gain' in lc and 'portfolio' in lc or lc == 'portfolio_gain'):
+            gain = pd.to_numeric(df[c], errors='coerce')
+    if invested is not None and gain is not None:
+        s = invested + gain
+        if s.notna().sum() > 0:
+            return s
+
+    # ---- (B) Reconstruct from per-symbol value columns (+ cash) ----
+    # heuristics: columns that look like per-symbol market value
+    value_like_prefixes = ('value_', 'val_', 'mv_', 'market_value_', 'position_value_', 'holding_value_')
+    value_like_suffixes = ('_value', '_val', '_mv')
+    candidate_cols = set()
+
+    for c in cols:
+        lc = c.lower()
+        if lc in ('portfolio_value', 'total_value', 'portfolio_total_value'):
+            continue
+        starts = any(lc.startswith(p) for p in value_like_prefixes)
+        ends   = any(lc.endswith(suf) for suf in value_like_suffixes)
+        if starts or ends:
+            candidate_cols.add(c)
+
+    # common cash columns to include (optional)
+    cash_cols = [c for c in cols if c.lower() in ('cash', 'cash_balance', 'cashvalue', 'available_cash')]
+
+    numeric_parts = []
+    for c in sorted(candidate_cols):
+        s = pd.to_numeric(df[c], errors='coerce')
+        if s.notna().sum() > 0:
+            numeric_parts.append(s)
+    for c in cash_cols:
+        s = pd.to_numeric(df[c], errors='coerce')
+        if s.notna().sum() > 0:
+            numeric_parts.append(s)
+
+    if numeric_parts:
+        # row-wise sum across available parts
+        s = pd.concat(numeric_parts, axis=1).sum(axis=1, min_count=1)
+        if s.notna().sum() > 0:
+            return s
+
+    # ---- (C) Give up ----
+    return None
+
+def total_portfolio_value_calendar(state, palette: str):
+    """
+    Heatmap: x = months (Jan..Dec), y = years, z = TOTAL PORTFOLIO VALUE (EoM).
+    FULL period (ignores state.date_range). Uses the widest available data.
+    """
+    # Prefer the widest daily df
+    daily_full = getattr(state, "daily_df_full", None)
+    daily_part = getattr(state, "daily_df", None)
+    daily = daily_full if (isinstance(daily_full, pd.DataFrame) and not daily_full.empty) else daily_part
+
+    # 1) Extract portfolio value series (daily)
+    if not isinstance(daily, pd.DataFrame) or daily.empty:
+        # mock (shouldn't be needed for your data)
+        idx = pd.date_range(end=pd.Timestamp.today().normalize(), periods=18, freq="D")
+        s_daily = pd.Series(np.linspace(10_000, 25_000, len(idx)), index=idx)
+    else:
+        s_daily = _get_portfolio_value_series(daily)
+        if s_daily is None or s_daily.dropna().empty:
+            # robust fallback: sum per-symbol value columns if present
+            df = daily.copy()
+            if not isinstance(df.index, pd.DatetimeIndex):
+                df.index = pd.to_datetime(df.index, errors="coerce")
+            df = df.sort_index()
+
+            parts = []
+            for c in df.columns:
+                lc = c.lower()
+                if lc.startswith(("value_", "val_", "mv_", "market_value_", "position_value_", "holding_value_")) \
+                   or lc.endswith(("_value", "_val", "_mv")):
+                    parts.append(pd.to_numeric(df[c], errors="coerce"))
+            if parts:
+                s_daily = pd.concat(parts, axis=1).sum(axis=1, min_count=1)
+            else:
+                # final fallback mock
+                idx = pd.date_range(end=pd.Timestamp.today().normalize(), periods=18, freq="D")
+                s_daily = pd.Series(np.linspace(10_000, 25_000, len(idx)), index=idx)
+
+        # ensure datetime index & sorted
+        if not isinstance(s_daily.index, pd.DatetimeIndex):
+            s_daily.index = pd.to_datetime(s_daily.index, errors="coerce")
+        s_daily = s_daily.sort_index()
+
+    # 2) Monthly END values (EoM)
+    s_monthly = s_daily.resample("M").last()
+
+    # 3) Build a FULL month-end index over the widest daily span
+    if isinstance(daily_full, pd.DataFrame) and not daily_full.empty:
+        idx_full = pd.to_datetime(daily_full.index, errors="coerce")
+        first_eom = idx_full.min().to_period("M").to_timestamp('M')  # month END
+        last_eom  = idx_full.max().to_period("M").to_timestamp('M')  # month END
+    else:
+        first_eom = s_monthly.index.min().to_period("M").to_timestamp('M')
+        last_eom  = s_monthly.index.max().to_period("M").to_timestamp('M')
+
+    full_months_eom = pd.date_range(first_eom, last_eom, freq="M")  # month END dates
+    s_monthly = s_monthly.reindex(full_months_eom)  # keep NaN for missing months (blank cells)
+
+    # 4) Pivot to Year × Month
+    data = pd.DataFrame({
+        "year": s_monthly.index.year,
+        "month": s_monthly.index.month,
+        "value": s_monthly.values
+    })
+    if data.empty:
+        # keep a minimal skeleton if no values at all
+        years = []
+        z = np.empty((0, 12))
+    else:
+        pivot = data.pivot(index="year", columns="month", values="value").sort_index()
+        min_year, max_year = int(data["year"].min()), int(data["year"].max())
+        pivot = pivot.reindex(index=range(min_year, max_year + 1))
+        pivot = pivot.reindex(columns=range(1, 13))  # months 1..12; NaN stays NaN (blank)
+        years = [str(y) for y in pivot.index.tolist()]
+        z = pivot.values
+
+    month_labels = [calendar.month_abbr[m] for m in range(1, 13)]
+    colorscale = get_colorscale(palette)
+
+    fig = go.Figure(
+        data=[go.Heatmap(
+            z=z,
+            x=month_labels,
+            y=years,
+            colorscale=colorscale,
+            colorbar=dict(title="Portfolio Value"),
+            hovertemplate="Year=%{y}<br>Month=%{x}<br>Value=%{z:.2f}<extra></extra>",
+            zsmooth=False
+        )]
+    )
+    fig.update_layout(
+        title="<b>Total Portfolio Value (Full Period)</b>",
+        xaxis_title="Month",
+        yaxis_title="Year",
+        margin=dict(l=10, r=10, t=50, b=10),
+    )
+    pane = pn.pane.Plotly(fig, config={"responsive": True}, sizing_mode="stretch_width")
+    return pane, fig

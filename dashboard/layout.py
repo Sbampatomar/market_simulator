@@ -35,21 +35,21 @@ def build_layout(state, widgets):
     ltm_by_symbol_pane, _ = bars.dividends_by_symbol_last_12m(state)
 
     # ---------------------------------------------------------------------
-    # HEATMAPS reativos à paleta — usando pn.bind (recomendada)
-    #   1) Calendar heatmap (FULL period): X=Jan..Dec, Y=Years
-    #   2) Monthly totals (respect date_range)
+    # HEATMAPS reativos à paleta — via pn.bind
+    #   1) Monthly Dividends (calendar, full period)
+    #   2) Total Portfolio Value (calendar, full period)
     # ---------------------------------------------------------------------
-    calendar_view = pn.bind(
+    calendar_div_view = pn.bind(
         lambda palette: heatmaps.monthly_dividends_calendar(state, palette)[1],
         palette=heatmap_palette
     )
-    month_total_view = pn.bind(
-        lambda palette: heatmaps.dividends_by_month_total(state, palette)[1],
+    calendar_val_view = pn.bind(
+        lambda palette: heatmaps.total_portfolio_value_calendar(state, palette)[1],
         palette=heatmap_palette
     )
 
-    calendar_pane = pn.pane.Plotly(calendar_view, config={"responsive": True}, sizing_mode="stretch_width")
-    month_total_pane = pn.pane.Plotly(month_total_view, config={"responsive": True}, sizing_mode="stretch_width")
+    calendar_div_pane = pn.pane.Plotly(calendar_div_view, config={"responsive": True}, sizing_mode="stretch_width")
+    calendar_val_pane = pn.pane.Plotly(calendar_val_view, config={"responsive": True}, sizing_mode="stretch_width")
 
     # ---------------------------------------------------------------------
     # Radars / alocações
@@ -98,8 +98,8 @@ def build_layout(state, widgets):
                 monthly_irr_pane,
                 ltm_total_div_pane,
                 ltm_by_symbol_pane,
-                calendar_pane,    # NEW calendar heatmap (full period)
-                month_total_pane  # Monthly totals (respects date_range)
+                calendar_div_pane,   # Monthly Dividends (Full Period)
+                calendar_val_pane    # Total Portfolio Value (Full Period)
             ),
 
             # Alocações
@@ -121,7 +121,7 @@ def build_layout(state, widgets):
         ("Total Dividends - Last 12 Months", lambda: bars.dividends_last_12m_total(state)[1]),
         ("Dividends by Symbol - Last 12 Months", lambda: bars.dividends_by_symbol_last_12m(state)[1]),
         ("Monthly Dividends (Full Period)", lambda: heatmaps.monthly_dividends_calendar(state, palette=heatmap_palette.value)[1]),
-        ("Monthly Totals (Heatmap)", lambda: heatmaps.dividends_by_month_total(state, palette=heatmap_palette.value)[1]),
+        ("Total Portfolio Value (Full Period)", lambda: heatmaps.total_portfolio_value_calendar(state, palette=heatmap_palette.value)[1]),
         ("Sector Allocation", lambda: sector_alloc_fig),
         ("Country Allocation", lambda: country_alloc_fig),
     ]
