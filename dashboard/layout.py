@@ -30,6 +30,15 @@ def build_layout(state, widgets):
     heatmap_full_pane, heatmap_full_fig = heatmaps.dividends_full(state)
     heatmap_recent_pane, heatmap_recent_fig = heatmaps.dividends_recent(state)
 
+    def _on_palette_change(event):
+        nonlocal heatmap_full_fig, heatmap_recent_fig
+        _, heatmap_full_fig = heatmaps.dividends_full(state)
+        heatmap_full_pane.object = heatmap_full_fig
+        _, heatmap_recent_fig = heatmaps.dividends_recent(state)
+        heatmap_recent_pane.object = heatmap_recent_fig
+
+    state.param.watch(_on_palette_change, "heatmap_palette")
+
     sector_alloc_pane, sector_alloc_fig = radars.sector_allocation(state)
     country_alloc_pane, country_alloc_fig = radars.country_allocation(state)
 
