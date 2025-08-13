@@ -201,54 +201,68 @@ def monthly_dividends_calendar(state, palette: str):
     """
     Heatmap: x = months (Jan..Dec), y = years, value = monthly dividends total.
     FULL period (ignores state.date_range). Respects state.selected_symbols.
-    Retorna (pane, fig).
+    Returns (pane, fig).
     """
-    # Fonte preferida: mensal por símbolo pré-agregado
-    df = getattr(state, "monthly_div_by_symbol", None)
+    # -------- Prefer deriving from the WIDEST daily df --------
+    df = None
+    daily_full = getattr(state, "daily_df_full", None)
+    if isinstance(daily_full, pd.DataFrame) and not daily_full.empty:
+        div_cols = [c for c in daily_full.columns if "div" in c.lower()]
+        if div_cols:
+            tmp = daily_full[div_cols].fillna(0.0).copy()
+            if not isinstance(tmp.index, pd.DatetimeIndex):
+                tmp.index = pd.to_datetime(tmp.index)
+            tmp["month"] = tmp.index.to_period("M").to_timestamp()
+            df = tmp.groupby("month").sum()
+            df.columns = [c.replace("div_", "").replace("DIV_", "") for c in df.columns]
 
-    # Deriva de daily se necessário
-    if df is None or len(df) == 0:
-        daily = getattr(state, "daily_df", None)
-        if daily is not None and len(daily) > 0:
-            div_cols = [c for c in daily.columns if "div" in c.lower()]
-            if div_cols:
-                tmp = daily[div_cols].fillna(0.0).copy()
-                tmp["month"] = tmp.index.to_period("M").dt.to_timestamp()
-                df = tmp.groupby("month").sum()
-                df.columns = [c.replace("div_", "").replace("DIV_", "") for c in df.columns]
-
-    # Mock estável se ainda não houver dados
-    if df is None or len(df) == 0:
+    # -------- Fallbacks --------
+    if (df is None) or df.empty:
+        mdbs_full = getattr(state, "monthly_div_by_symbol_full", None)
+        if isinstance(mdbs_full, pd.DataFrame) and not mdbs_full.empty:
+            df = mdbs_full.copy()
+    if (df is None) or df.empty:
+        mdbs_part = getattr(state, "monthly_div_by_symbol", None)
+        if isinstance(mdbs_part, pd.DataFrame) and not mdbs_part.empty:
+            df = mdbs_part.copy()
+    if (df is None) or df.empty:
         idx = pd.date_range(end=pd.Timestamp.today().normalize(), periods=18, freq="MS")
         df = pd.DataFrame({
             "AAA.MI": np.linspace(0.0, 10.0, len(idx)),
             "BBB.DE": np.linspace(1.0, 8.0, len(idx))[::-1],
         }, index=idx)
 
-    # Filtro opcional por símbolos
+    # Optional: filter selected symbols
     selected = getattr(state, "selected_symbols", None)
     if selected:
         keep = [s for s in selected if s in df.columns]
         if keep:
             df = df[keep]
 
-    # Normaliza o índice para início do mês
-    df = df.copy()
+    # Normalize monthly index
     if isinstance(df.index, pd.PeriodIndex):
         df.index = df.index.to_timestamp()
     else:
         df.index = pd.to_datetime(df.index)
 
-    # Total mensal (série por mês)
+    # Total monthly dividends across selected symbols
     s = df.sum(axis=1)
 
-    # EXPANSÃO: índice mensal contínuo cobrindo todo o período
-    first_m = s.index.min().to_period("M").to_timestamp()
-    last_m  = s.index.max().to_period("M").to_timestamp()
-    full_idx = pd.date_range(first_m, last_m, freq="MS")
-    s = s.reindex(full_idx, fill_value=0.0)  # troque para np.nan se preferir “célula em branco”
+    # -------- CRUCIAL: determine FULL monthly bounds from the widest source --------
+    # Prefer bounds from daily_df_full; else from the df we built
+    if isinstance(daily_full, pd.DataFrame) and not daily_full.empty:
+        idx_full = pd.to_datetime(daily_full.index)
+        first_m = idx_full.min().to_period("M").to_timestamp()
+        last_m  = idx_full.max().to_period("M").to_timestamp()
+    else:
+        first_m = s.index.min().to_period("M").to_timestamp()
+        last_m  = s.index.max().to_period("M").to_timestamp()
 
-    # Tabela Year x Month (todas os anos e 12 meses)
+    # Reindex to a continuous monthly range across the FULL period
+    full_idx = pd.date_range(first_m, last_m, freq="MS")
+    s = s.reindex(full_idx, fill_value=0.0)  # use np.nan if you want blank cells
+
+    # Pivot: Years x Months (ensure all years and 12 months exist)
     data = pd.DataFrame({
         "year": s.index.year,
         "month": s.index.month,
@@ -260,8 +274,8 @@ def monthly_dividends_calendar(state, palette: str):
     pivot = pivot.reindex(columns=range(1, 13), fill_value=0.0)
 
     years = list(pivot.index)
-    month_labels = [calendar.month_abbr[m] for m in range(1, 13)]  # Jan..Dec
-    z = pivot.values  # shape (n_years, 12)
+    month_labels = [calendar.month_abbr[m] for m in range(1, 13)]
+    z = pivot.values
 
     colorscale = get_colorscale(palette)
     fig = go.Figure(

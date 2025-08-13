@@ -1,18 +1,18 @@
-Start date: 2025-07-25
+Start date: 2020-07-25
 End date: 2025-08-12
-Max Drawdown: -3.93%
-Portfolio XIRR: 28.63%
-Total dividends generated (gross): €0.00
-Total dividends generated (net): €0.00
+Max Drawdown: -26.75%
+Portfolio XIRR: 5.17%
+Total dividends generated (gross): €346.01
+Total dividends generated (net): €249.67
 Total dividends reinvested: €0.00
-Remaining dividend pot: €0.00
-Last year generated dividend (net): €0.00
-YTD generated dividend (net): €0.00
+Remaining dividend pot: €249.67
+Last year generated dividend (net): €19.53
+YTD generated dividend (net): €19.53
 Total broker fees paid: €19.50
 Final gain/loss absolute: €11.00
 Final gain/loss percentual: 1.02%
-YTD gain/loss absolute: €31.77
-Last month gain/loss absolute: €31.30
+YTD gain/loss absolute: €188.17
+Last month gain/loss absolute: €54.38
 Initial investment: €1063.40
 Total investments (initial + investment_plan): €1082.90
 Final portfolio value: €1093.91
@@ -20,5 +20,5 @@ Final total stocks count: 134
 Capital gain if realized (last date): €30.50
 Capital gain tax if realized: €7.93
 Capital gain (net): €22.57
-Total payed taxes on dividends: €0.00
-Dividend payed tax / gain ratio: 0.00%
+Total payed taxes on dividends: €96.33
+Dividend payed tax / gain ratio: 875.44%
