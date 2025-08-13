@@ -143,6 +143,26 @@ def run_simulation(start_date=None, end_date=None, reinvestment_threshold=None):
                     cash_buffers[symbol] += leftover
                     actions.append(f"plan buy {qty} {symbol} @ {price:.2f}")
 
+        # Process dividends for held symbols
+        for sym in all_symbols:
+            if held[sym] > 0 and sym in price_data:
+                if 'Dividend' in price_data[sym].columns and day in price_data[sym].index:
+                    div_val = price_data[sym].loc[day, 'Dividend']
+                    if pd.notna(div_val) and Decimal(str(div_val)) > 0:
+                        dividend = Decimal(str(div_val))
+                        gross = held[sym] * dividend
+                        country = symbol_metadata.loc[sym, 'country'] if sym in symbol_metadata.index else 'Unknown'
+                        tax_rate = Decimal(str(get_dividend_tax_rate(country)))
+                        net = gross * (Decimal('1.0') - tax_rate)
+                        tax = gross - net
+                        monthly_stats[month_str]['dividends'] += net
+                        monthly_dividends_by_symbol.setdefault(month_str, {}).setdefault(sym, Decimal('0.0'))
+                        monthly_dividends_by_symbol[month_str][sym] += net
+                        gross_dividends[sym] = gross_dividends.get(sym, Decimal('0.0')) + gross
+                        net_dividends[sym] = net_dividends.get(sym, Decimal('0.0')) + net
+                        dividend_taxes_paid += tax
+                        dividend_buffers[sym] += net
+
         if ENABLE_MONTHLY_REINVESTMENT:
             if day.month != current_month:
                 current_month = day.month
