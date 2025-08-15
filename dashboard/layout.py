@@ -1,129 +1,135 @@
 # dashboard/layout.py
-# Template principal com heatmaps reativos via pn.bind (sem mutação in-place)
-
 import panel as pn
 from dashboard.kpi import kpi_group_panel, kpi_date_panel, compute_custom_kpis
 from dashboard.config import KPI_GROUPS
 from dashboard.plots import lines, bars, heatmaps, radars
+from dashboard.plots.lines import portfolio_value_with_symbols
 
 def build_layout(state, widgets):
-    """
-    widgets.make_widgets(state) deve retornar, nesta ordem:
-        (date_range, heatmap_palette, symbol_selector, view_mode_toggle)
-    """
+    # Unpack widgets
     date_range, heatmap_palette, symbol_selector, view_mode_toggle = widgets
 
-    # ---------------------------------------------------------------------
-    # Overview charts (reativos ao toggle daily/monthly)
-    # ---------------------------------------------------------------------
+    # ---------------- Overview ----------------
     total_value_pane, _ = lines.total_portfolio_value(state, mode=view_mode_toggle.value)
-    inv_vs_val_pane, _ = lines.invested_vs_value(state, mode=view_mode_toggle.value)
+    inv_vs_val_pane, _  = lines.invested_vs_value(state, mode=view_mode_toggle.value)
+    pv_sym_pane, _      = portfolio_value_with_symbols(state)
 
+    # Toggle daily/monthly for overview charts
     def _on_mode_change(event):
-        _, total_fig = lines.total_portfolio_value(state, mode=event.new)
-        total_value_pane.object = total_fig
-        _, inv_fig = lines.invested_vs_value(state, mode=event.new)
-        inv_vs_val_pane.object = inv_fig
-
+        _, fig1 = lines.total_portfolio_value(state, mode=event.new)
+        total_value_pane.object = fig1
+        _, fig2 = lines.invested_vs_value(state, mode=event.new)
+        inv_vs_val_pane.object = fig2
     view_mode_toggle.param.watch(_on_mode_change, "value")
 
-    # ---------------------------------------------------------------------
-    # Barras (mantidos como estão)
-    # ---------------------------------------------------------------------
-    monthly_irr_pane, _ = bars.monthly_irr(state)
+    # ---------------- Bars ----------------
+    monthly_irr_pane, _   = bars.monthly_irr(state)
     ltm_total_div_pane, _ = bars.dividends_last_12m_total(state)
     ltm_by_symbol_pane, _ = bars.dividends_by_symbol_last_12m(state)
 
-    # ---------------------------------------------------------------------
-    # HEATMAPS reativos à paleta — via pn.bind
-    #   1) Monthly Dividends (calendar, full period)
-    #   2) Total Portfolio Value (calendar, full period)
-    # ---------------------------------------------------------------------
-    calendar_div_view = pn.bind(
-        lambda palette: heatmaps.monthly_dividends_calendar(state, palette)[1],
-        palette=heatmap_palette
-    )
-    calendar_val_view = pn.bind(
-        lambda palette: heatmaps.total_portfolio_value_calendar(state, palette)[1],
-        palette=heatmap_palette
-    )
-
+    # ---------------- Heatmaps (palette-bound) ----------------
+    calendar_div_view = pn.bind(lambda palette: heatmaps.monthly_dividends_calendar(state, palette)[1],
+                                palette=heatmap_palette)
+    calendar_val_view = pn.bind(lambda palette: heatmaps.total_portfolio_value_calendar(state, palette)[1],
+                                palette=heatmap_palette)
     calendar_div_pane = pn.pane.Plotly(calendar_div_view, config={"responsive": True}, sizing_mode="stretch_width")
     calendar_val_pane = pn.pane.Plotly(calendar_val_view, config={"responsive": True}, sizing_mode="stretch_width")
 
-    # ---------------------------------------------------------------------
-    # Radars / alocações
-    # ---------------------------------------------------------------------
-    sector_alloc_pane, sector_alloc_fig = radars.sector_allocation(state)
+    # ---------------- Radars ----------------
+    sector_alloc_pane, sector_alloc_fig   = radars.sector_allocation(state)
     country_alloc_pane, country_alloc_fig = radars.country_allocation(state)
 
-    # ---------------------------------------------------------------------
-    # KPIs
-    # ---------------------------------------------------------------------
+    # ---------------- KPIs ----------------
     custom_kpis = compute_custom_kpis(state, state.kpis)
 
+    # --------- Unified rebuild for symbol-dependent charts ----------
+    def _rebuild_symbol_dependent():
+        # Portfolio value + individual symbols
+        _, fig_comp = portfolio_value_with_symbols(state)
+        pv_sym_pane.object = fig_comp
+
+        # Dividends by Symbol – Last 12 Months
+        _, fig_ltm_sym = bars.dividends_by_symbol_last_12m(state)
+        ltm_by_symbol_pane.object = fig_ltm_sym
+
+        # Monthly Dividends (Full Period) calendar — depends on selected symbols + palette
+        _, fig_div_cal = heatmaps.monthly_dividends_calendar(state, palette=heatmap_palette.value)
+        calendar_div_pane.object = fig_div_cal
+
+    # Watch symbol selection — update state THEN rebuild (works for both clicks and buttons)
+    raw_checkbox = getattr(symbol_selector, "_checkbox", None) or symbol_selector
+    def _on_symbols_change(event):
+        # event.new is the checkbox value after buttons or manual clicks
+        state.selected_symbols = [str(s).upper() for s in event.new]
+        _rebuild_symbol_dependent()
+    raw_checkbox.param.watch(_on_symbols_change, "value")
+
+    # Watch date range (these charts read state and should honor the range)
+    date_range.param.watch(lambda e: _rebuild_symbol_dependent(), "value")
+
+    # ---------------- Template ----------------
     template = pn.template.FastListTemplate(
         title="Market Simulation Dashboard",
         sidebar=[
             "## Filters",
             date_range,
             pn.Spacer(height=32),
-            heatmap_palette,         # <- o mesmo widget usado no bind
+            heatmap_palette,
             pn.Spacer(height=32),
-            pn.pane.Markdown(""),    # placeholder para FileDownload (setado em app.py)
+            pn.pane.Markdown(""),    # placeholder for FileDownload (set in app.py)
             pn.Spacer(height=32),
-            view_mode_toggle,        # Daily/Monthly para os overview charts
+            view_mode_toggle,
             pn.Spacer(height=16),
-            symbol_selector
+            symbol_selector,         # panel with checkbox + buttons
         ],
         main=[
-            # KPIs (lazy via lambda para refletir filtros atuais)
+            # KPIs
             lambda: kpi_date_panel(state.kpis),
-            lambda: kpi_group_panel(custom_kpis, "General KPIs", KPI_GROUPS["General KPIs"]),
-            lambda: kpi_group_panel(custom_kpis, "Capital KPIs", KPI_GROUPS["Capital KPIs"]),
-            lambda: kpi_group_panel(custom_kpis, "Dividend KPIs", KPI_GROUPS["Dividend KPIs"]),
-            lambda: kpi_group_panel(custom_kpis, "Taxes/Fees KPIs", KPI_GROUPS["Taxes/Fees KPIs"]),
+            lambda: kpi_group_panel(custom_kpis, "General KPIs",     KPI_GROUPS["General KPIs"]),
+            lambda: kpi_group_panel(custom_kpis, "Capital KPIs",     KPI_GROUPS["Capital KPIs"]),
+            lambda: kpi_group_panel(custom_kpis, "Dividend KPIs",    KPI_GROUPS["Dividend KPIs"]),
+            lambda: kpi_group_panel(custom_kpis, "Taxes/Fees KPIs",  KPI_GROUPS["Taxes/Fees KPIs"]),
             lambda: kpi_group_panel(custom_kpis, "Performance KPIs", KPI_GROUPS["Performance KPIs"]),
 
             # Overview
             pn.Column(
                 pn.pane.Markdown("### Portfolio Overview"),
                 total_value_pane,
-                inv_vs_val_pane
+                inv_vs_val_pane,
+                pv_sym_pane,
             ),
 
-            # Dividendos (barras + heatmaps)
+            # Dividends
             pn.Column(
                 pn.pane.Markdown("### Dividend Metrics"),
                 monthly_irr_pane,
                 ltm_total_div_pane,
                 ltm_by_symbol_pane,
-                calendar_div_pane,   # Monthly Dividends (Full Period)
-                calendar_val_pane    # Total Portfolio Value (Full Period)
+                calendar_div_pane,
+                calendar_val_pane,
             ),
 
-            # Alocações
+            # Allocations
             pn.Column(
                 pn.pane.Markdown("### Allocation Charts"),
-                pn.Row(sector_alloc_pane, country_alloc_pane)
+                pn.Row(sector_alloc_pane, country_alloc_pane),
             ),
-        ]
+        ],
     )
 
-    # ---------------------------------------------------------------------
-    # Exportação (PDF etc.). Use lambdas que reconstroem as figuras no estado atual.
-    # ---------------------------------------------------------------------
+    # ---------------- Export (PDF, etc.) ----------------
     chart_specs = [
-        ("Symbol Value Over Time", lambda: lines.symbol_values(state)[1]),
-        ("Total Portfolio Value", lambda: lines.total_portfolio_value(state, mode=view_mode_toggle.value)[1]),
-        ("Invested vs Portfolio Value", lambda: lines.invested_vs_value(state, mode=view_mode_toggle.value)[1]),
-        ("Monthly IRR", lambda: bars.monthly_irr(state)[1]),
-        ("Total Dividends - Last 12 Months", lambda: bars.dividends_last_12m_total(state)[1]),
+        ("Symbol Value Over Time",               lambda: lines.symbol_values(state)[1]),
+        ("Total Portfolio Value",                lambda: lines.total_portfolio_value(state, mode=view_mode_toggle.value)[1]),
+        ("Invested vs Portfolio Value",          lambda: lines.invested_vs_value(state, mode=view_mode_toggle.value)[1]),
+        ("Portfolio Value + Individual Symbols", lambda: portfolio_value_with_symbols(state)[1]),
+        ("Monthly IRR",                          lambda: bars.monthly_irr(state)[1]),
+        ("Total Dividends - Last 12 Months",     lambda: bars.dividends_last_12m_total(state)[1]),
         ("Dividends by Symbol - Last 12 Months", lambda: bars.dividends_by_symbol_last_12m(state)[1]),
-        ("Monthly Dividends (Full Period)", lambda: heatmaps.monthly_dividends_calendar(state, palette=heatmap_palette.value)[1]),
-        ("Total Portfolio Value (Full Period)", lambda: heatmaps.total_portfolio_value_calendar(state, palette=heatmap_palette.value)[1]),
-        ("Sector Allocation", lambda: sector_alloc_fig),
-        ("Country Allocation", lambda: country_alloc_fig),
+        ("Monthly Dividends (Full Period)",      lambda: heatmaps.monthly_dividends_calendar(state, palette=heatmap_palette.value)[1]),
+        ("Total Portfolio Value (Full Period)",  lambda: heatmaps.total_portfolio_value_calendar(state, palette=heatmap_palette.value)[1]),
+        ("Sector Allocation",                    lambda: sector_alloc_fig),
+        ("Country Allocation",                   lambda: country_alloc_fig),
     ]
 
     return template, chart_specs

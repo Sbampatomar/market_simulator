@@ -1,6 +1,9 @@
+# dashboard/plots/bars.py
 import panel as pn
 import plotly.graph_objects as go
 import plotly.colors as pc
+import pandas as pd
+import colorcet as cc
 
 def monthly_irr(state):
     irr_approx = (state.monthly_df["perf_pct"] / 100 + 1) ** 12 - 1
@@ -30,6 +33,14 @@ def monthly_irr(state):
 def dividends_last_12m_total(state):
     df = state.dividends_df[state.dividends_df.index >= (state.dividends_df.index.max() - pd.DateOffset(months=12))].copy()
     df = df.fillna(0.0)
+
+    # NEW: apply symbol selection if present
+    selected = getattr(state, "selected_symbols", None)
+    if selected is not None:  # <-- accept empty list
+        sel = {str(s).upper() for s in selected}
+        keep = [c for c in df.columns if isinstance(c, str) and c.upper() in sel]
+        df = df[keep] if keep else df.iloc[:, 0:0]
+
     monthly = df.groupby(df.index.to_period("M")).sum().sum(axis=1).to_timestamp()
 
     fig = go.Figure()
@@ -55,17 +66,21 @@ def dividends_last_12m_total(state):
     )
     return pn.pane.Plotly(fig, config={"responsive": True}, sizing_mode="stretch_width"), fig
 
-# Local import to avoid global pd dependency at module import
-import pandas as pd
-import colorcet as cc
-
 def dividends_by_symbol_last_12m(state):
     df = state.dividends_df[state.dividends_df.index >= (state.dividends_df.index.max() - pd.DateOffset(months=12))].copy()
     df = df.fillna(0.0)
+
+    # NEW: apply symbol selection if present
+    selected = getattr(state, "selected_symbols", None)
+    if selected is not None:  # <-- accept empty list
+        sel = {str(s).upper() for s in selected}
+        keep = [c for c in df.columns if isinstance(c, str) and c.upper() in sel]
+        df = df[keep] if keep else df.iloc[:, 0:0]
+
     monthly_symbol = df.groupby(df.index.to_period("M")).sum().to_timestamp()
 
     fig = go.Figure()
-    palette = cc.glasbey[:len(monthly_symbol.columns)]
+    palette = cc.glasbey[:max(1, len(monthly_symbol.columns))]
     for i, sym in enumerate(monthly_symbol.columns):
         fig.add_trace(go.Bar(
             x=monthly_symbol.index,
@@ -74,6 +89,8 @@ def dividends_by_symbol_last_12m(state):
             marker_color=palette[i % len(palette)],
             opacity=0.85
         ))
+    # Legend at bottom (as before)
+    BOTTOM_EXTRA_LEGEND = 80
     fig.update_layout(
         barmode='group',
         title={"text": "<b>Dividends by Symbol - Last 12 Months</b>", "x": 0.5},
@@ -83,8 +100,17 @@ def dividends_by_symbol_last_12m(state):
         paper_bgcolor='white',
         plot_bgcolor='white',
         font=dict(color="black", size=12),
-        margin=dict(l=40, r=20, t=40, b=40),
+        margin=dict(l=40, r=20, t=40, b=BOTTOM_EXTRA_LEGEND),
         xaxis=dict(gridcolor='lightgray'),
-        yaxis=dict(gridcolor='lightgray')
+        yaxis=dict(gridcolor='lightgray'),
+        legend=dict(
+            orientation="h",
+            x=0.5, xanchor="center",
+            y=-0.20, yanchor="top",
+            bgcolor="rgba(0,0,0,0)",
+            bordercolor="rgba(0,0,0,0)",
+            itemsizing="constant",
+            traceorder="normal",
+        ),
     )
     return pn.pane.Plotly(fig, config={"responsive": True}, sizing_mode="stretch_width"), fig

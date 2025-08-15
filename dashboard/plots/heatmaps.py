@@ -9,6 +9,7 @@ import pandas as pd
 import panel as pn
 import plotly.graph_objects as go
 import calendar
+import re
 
 # Paletas opcionais
 try:
@@ -85,138 +86,193 @@ def _coerce_month_index(idx):
         return idx.to_timestamp()
     return pd.to_datetime(idx)
 
+def _div_value_columns_strict(cols):
+    """
+    Keep ONLY dividend cash-flow columns (case-insensitive):
+      - 'div_<SYM>' or '<SYM>_div'
+      - 'dividend_<SYM>' or '<SYM>_dividend'
+    Exclude ratio/yield/percent/rate variants.
+    """
+    out = []
+    for c in cols:
+        if not isinstance(c, str):
+            continue
+        lc = c.lower()
+        is_div = (
+            lc.startswith("div_") or lc.endswith("_div") or
+            lc.startswith("dividend_") or lc.endswith("_dividend")
+        )
+        if is_div and not any(b in lc for b in ("yield", "ratio", "pct", "percent", "rate")):
+            out.append(c)
+    return out
+
+def _strip_div_prefix_suffix(name: str) -> str:
+    s = re.sub(r"^(div_|dividend_)", "", name, flags=re.I)
+    s = re.sub(r"(_div|_dividend)$", "", s, flags=re.I)
+    return s
+
 # ---------- Fábricas de figuras ----------
 def dividends_by_month_symbol(state, palette: str):
     """
-    Heatmap: linhas = meses (YYYY-MM), colunas = símbolos, valores = dividendos.
-    Usa state.monthly_div_by_symbol se existir; senão deriva de daily_df.
-    Respeita state.date_range e state.selected_symbols.
-    Retorna (pane, fig).
+    Heatmap: rows = months (YYYY-MM), columns = symbols, z = monthly dividend totals.
+    Respects date_range and selected_symbols (empty list => show nothing).
+    Uses strict dividend cash-flow columns only.
     """
+    # 1) Prefer precomputed monthly matrix
     df = getattr(state, "monthly_div_by_symbol", None)
-
-    if df is None or len(df) == 0:
+    if not (isinstance(df, pd.DataFrame) and not df.empty):
+        # 2) Derive from daily_df strictly from dividend flow columns
         daily = getattr(state, "daily_df", None)
-        if daily is not None and len(daily) > 0:
-            div_cols = [c for c in daily.columns if "div" in c.lower()]
+        if isinstance(daily, pd.DataFrame) and not daily.empty:
+            div_cols = _div_value_columns_strict(daily.columns)
             if div_cols:
                 tmp = daily[div_cols].fillna(0.0).copy()
-                tmp["month"] = tmp.index.to_period("M").dt.to_timestamp()
+                if not isinstance(tmp.index, pd.DatetimeIndex):
+                    tmp.index = pd.to_datetime(tmp.index, errors="coerce")
+                tmp["month"] = tmp.index.to_period("M").to_timestamp()
                 df = tmp.groupby("month").sum()
-                df.columns = [c.replace("div_", "").replace("DIV_", "") for c in df.columns]
+                df = df.rename(columns={c: _strip_div_prefix_suffix(c) for c in df.columns})
 
-    if df is None or len(df) == 0:
+    # 3) Fallback synthetic if still empty
+    if not (isinstance(df, pd.DataFrame) and not df.empty):
         idx = pd.date_range(end=pd.Timestamp.today().normalize(), periods=12, freq="MS")
-        df = pd.DataFrame({
-            "AAA.MI": np.linspace(0.0, 10.0, len(idx)),
-            "BBB.DE": np.linspace(1.0, 8.0, len(idx))[::-1],
-            "CCC.PA": np.linspace(0.5, 6.5, len(idx)),
-        }, index=idx)
+        df = pd.DataFrame({"AAA.MI": np.linspace(0.0, 10.0, len(idx)),
+                           "BBB.DE": np.linspace(1.0, 8.0, len(idx))[::-1],
+                           "CCC.PA": np.linspace(0.5, 6.5, len(idx))}, index=idx)
 
-    # recorte por data selecionada
-    start, end = getattr(state, "date_range", (df.index.min(), df.index.max()))
+    # Normalize monthly index and clip to selected date range
     df = df.copy()
     df.index = _coerce_month_index(df.index)
-    df = df.loc[(df.index >= pd.to_datetime(start)) & (df.index <= pd.to_datetime(end))]
+    df = df.sort_index()
+    start, end = getattr(state, "date_range", (df.index.min(), df.index.max()))
+    if start is not None and end is not None:
+        df = df.loc[pd.to_datetime(start):pd.to_datetime(end)]
 
-    # seleção de símbolos
+    # Apply symbol selection (accept empty list)
     selected = getattr(state, "selected_symbols", None)
-    if selected:
-        keep = [s for s in selected if s in df.columns]
-        if keep:
-            df = df[keep]
+    if selected is not None:
+        # case-insensitive mapping from UPPER -> original column
+        cmap = {c.upper(): c for c in df.columns if isinstance(c, str)}
+        keep = [cmap[s.upper()] for s in selected if s.upper() in cmap]
+        df = df[keep] if keep else df.iloc[:, 0:0]
 
+    # Build figure
     z = df.values
     x_labels = list(df.columns)
     y_labels = [d.strftime("%Y-%m") for d in df.index]
     colorscale = get_colorscale(palette)
 
-    fig = go.Figure(
-        data=[go.Heatmap(
-            z=z,
-            x=x_labels,
-            y=y_labels,
-            colorscale=colorscale,
-            colorbar=dict(title="Dividends"),
-            hovertemplate="Month=%{y}<br>Symbol=%{x}<br>Value=%{z:.2f}<extra></extra>",
-            zsmooth=False
-        )]
-    )
+    fig = go.Figure(data=[go.Heatmap(
+        z=z, x=x_labels, y=y_labels, colorscale=colorscale,
+        colorbar=dict(title="Dividends"),
+        hovertemplate="Month=%{y}<br>Symbol=%{x}<br>Value=%{z:.2f}<extra></extra>",
+        zsmooth=False, xgap=2, ygap=2
+    )])
     fig.update_layout(
-        title="<b>Monthly Dividends by Symbol</b>",
-        xaxis_title="Symbol",
-        yaxis_title="Month",
-        margin=dict(l=10, r=10, t=50, b=10),
+        title={"text":"<b>Monthly Dividends by Symbol</b>", "x":0.5},
+        xaxis_title="Symbol", yaxis_title="Month",
+        margin=dict(l=10, r=10, t=50, b=70),
     )
+    # Place colorbar at bottom for consistency
+    fig.update_traces(selector=dict(type="heatmap"),
+        colorbar=dict(orientation="h", x=0.5, xanchor="center",
+                      y=-0.24, yanchor="top", len=0.90, thickness=12))
+
     pane = pn.pane.Plotly(fig, config={"responsive": True}, sizing_mode="stretch_width")
     return pane, fig
 
+
 def dividends_by_month_total(state, palette: str):
     """
-    Heatmap 1xN (ou Nx1) com totais mensais agregados no período do slider.
-    Respeita state.date_range.
+    Heatmap 1xN (or Nx1) with monthly total dividends (cash flows only).
+    Respects date_range and selected_symbols (empty list => zeroed series).
     """
-    start, end = getattr(state, "date_range", (None, None))
     daily = getattr(state, "daily_df", None)
-    if daily is None or len(daily) == 0:
-        idx = pd.date_range(end=pd.Timestamp.today().normalize(), periods=12, freq="MS")
-        s = pd.Series(np.linspace(0.0, 20.0, len(idx)), index=idx)
-    else:
-        div_cols = [c for c in daily.columns if "div" in c.lower()]
+
+    if isinstance(daily, pd.DataFrame) and not daily.empty:
+        div_cols = _div_value_columns_strict(daily.columns)
         if div_cols:
-            s = daily[div_cols].sum(axis=1).groupby(daily.index.to_period("M")).sum()
+            df = daily[div_cols].fillna(0.0).copy()
+            if not isinstance(df.index, pd.DatetimeIndex):
+                df.index = pd.to_datetime(df.index, errors="coerce")
+            # Optional symbol filter BEFORE monthly aggregation
+            selected = getattr(state, "selected_symbols", None)
+            if selected is not None:
+                sel = {str(s).upper() for s in selected}
+                keep_cols = []
+                for c in div_cols:
+                    sym = _strip_div_prefix_suffix(c)
+                    if isinstance(sym, str) and sym.upper() in sel:
+                        keep_cols.append(c)
+                df = df[keep_cols] if keep_cols else df.iloc[:, 0:0]
+
+            s = df.sum(axis=1).groupby(df.index.to_period("M")).sum()
             s.index = s.index.to_timestamp()
         else:
-            # fallback: usa portfolio_gain como proxy mensal
-            s = daily["portfolio_gain"].groupby(daily.index.to_period("M")).sum()
-            s.index = s.index.to_timestamp()
-        if start is not None and end is not None:
-            s = s.loc[pd.to_datetime(start):pd.to_datetime(end)]
+            # No dividend flow columns found -> produce an empty series over the date range
+            s = pd.Series(dtype=float)
+    else:
+        s = pd.Series(dtype=float)
 
+    # Clip to date range (and if empty, synthesize last 12 months of zeros to keep the plot stable)
+    start, end = getattr(state, "date_range", (None, None))
+    if s.empty:
+        base_end = pd.Timestamp.today().normalize()
+        base_idx = pd.date_range(base_end - pd.DateOffset(months=11), base_end, freq="MS")
+        s = pd.Series(0.0, index=base_idx)
+    if start is not None and end is not None:
+        s = s.loc[pd.to_datetime(start):pd.to_datetime(end)]
+        if s.empty:
+            # keep structure (zeros) so the heatmap renders
+            rng = pd.date_range(pd.to_datetime(start).to_period("M").to_timestamp(),
+                                pd.to_datetime(end).to_period("M").to_timestamp(), freq="MS")
+            s = pd.Series(0.0, index=rng)
+
+    # Build figure (vertical 1-column heatmap with bottom colorbar)
     z = s.values.reshape(-1, 1)
     y_labels = [d.strftime("%Y-%m") for d in s.index]
     colorscale = get_colorscale(palette)
 
-    fig = go.Figure(
-        data=[go.Heatmap(
-            z=z,
-            x=["Total"],
-            y=y_labels,
-            colorscale=colorscale,
-            colorbar=dict(title="Total"),
-            hovertemplate="Month=%{y}<br>Total=%{z:.2f}<extra></extra>",
-            zsmooth=False
-        )]
-    )
+    fig = go.Figure(data=[go.Heatmap(
+        z=z, x=["Total"], y=y_labels, colorscale=colorscale,
+        colorbar=dict(title="Total"),
+        hovertemplate="Month=%{y}<br>Total=%{z:.2f}<extra></extra>",
+        zsmooth=False, xgap=2, ygap=2
+    )])
+    fig.update_traces(selector=dict(type="heatmap"),
+        colorbar=dict(orientation="h", x=0.5, xanchor="center",
+                      y=-0.24, yanchor="top", len=0.70, thickness=12))
     fig.update_layout(
-        title="<b>Monthly Totals (Dividends or Gains)</b>",
-        xaxis_title="",
-        yaxis_title="Month",
-        margin=dict(l=10, r=10, t=50, b=10),
+        title={"text":"<b>Monthly Dividends Total</b>", "x":0.5},
+        xaxis_title="", yaxis_title="Month",
+        margin=dict(l=10, r=10, t=50, b=70),
     )
+
     pane = pn.pane.Plotly(fig, config={"responsive": True}, sizing_mode="stretch_width")
     return pane, fig
 
 def monthly_dividends_calendar(state, palette: str):
     """
-    Heatmap: x = months (Jan..Dec), y = years, value = monthly dividends total.
-    FULL period (ignores state.date_range). Respects state.selected_symbols.
-    Returns (pane, fig).
+    Heatmap: x = months (Jan..Dec), y = years, z = monthly dividends total.
+    FULL period (ignores state.date_range). Respects state.selected_symbols (empty list => show none).
+    Visual matches total_portfolio_value_calendar.
     """
-    # -------- Prefer deriving from the WIDEST daily df --------
+    # Prefer the widest daily df for full bounds and reliable flows
     df = None
     daily_full = getattr(state, "daily_df_full", None)
+
     if isinstance(daily_full, pd.DataFrame) and not daily_full.empty:
-        div_cols = [c for c in daily_full.columns if "div" in c.lower()]
+        div_cols = _div_value_columns_strict(daily_full.columns)  # strict: div_/dividend_ and suffixes
         if div_cols:
             tmp = daily_full[div_cols].fillna(0.0).copy()
             if not isinstance(tmp.index, pd.DatetimeIndex):
-                tmp.index = pd.to_datetime(tmp.index)
+                tmp.index = pd.to_datetime(tmp.index, errors="coerce")
             tmp["month"] = tmp.index.to_period("M").to_timestamp()
             df = tmp.groupby("month").sum()
-            df.columns = [c.replace("div_", "").replace("DIV_", "") for c in df.columns]
+            # normalize to pure symbols (case preserved from source)
+            df = df.rename(columns={c: _strip_div_prefix_suffix(c) for c in df.columns})
 
-    # -------- Fallbacks --------
+    # Fallback to precomputed monthly matrices
     if (df is None) or df.empty:
         mdbs_full = getattr(state, "monthly_div_by_symbol_full", None)
         if isinstance(mdbs_full, pd.DataFrame) and not mdbs_full.empty:
@@ -227,76 +283,85 @@ def monthly_dividends_calendar(state, palette: str):
             df = mdbs_part.copy()
     if (df is None) or df.empty:
         idx = pd.date_range(end=pd.Timestamp.today().normalize(), periods=18, freq="MS")
-        df = pd.DataFrame({
-            "AAA.MI": np.linspace(0.0, 10.0, len(idx)),
-            "BBB.DE": np.linspace(1.0, 8.0, len(idx))[::-1],
-        }, index=idx)
+        df = pd.DataFrame({"AAA.MI": np.linspace(0.0, 10.0, len(idx)),
+                           "BBB.DE": np.linspace(1.0, 8.0, len(idx))[::-1]}, index=idx)
 
-    # Optional: filter selected symbols
+    # Case-insensitive symbol filter (accept empty list => show none)
     selected = getattr(state, "selected_symbols", None)
-    if selected:
-        keep = [s for s in selected if s in df.columns]
-        if keep:
-            df = df[keep]
+    if selected is not None:
+        cmap = {c.upper(): c for c in df.columns if isinstance(c, str)}
+        keep = [cmap[s.upper()] for s in selected if isinstance(s, str) and s.upper() in cmap]
+        df = df[keep] if keep else df.iloc[:, 0:0]
 
-    # Normalize monthly index
+    # Normalize to month starts
     if isinstance(df.index, pd.PeriodIndex):
         df.index = df.index.to_timestamp()
     else:
-        df.index = pd.to_datetime(df.index)
+        df.index = pd.to_datetime(df.index, errors="coerce")
+    df = df.sort_index()
 
-    # Total monthly dividends across selected symbols
+    # Total per month
     s = df.sum(axis=1)
 
-    # -------- CRUCIAL: determine FULL monthly bounds from the widest source --------
-    # Prefer bounds from daily_df_full; else from the df we built
+    # FULL span (from widest daily if available)
     if isinstance(daily_full, pd.DataFrame) and not daily_full.empty:
-        idx_full = pd.to_datetime(daily_full.index)
+        idx_full = pd.to_datetime(daily_full.index, errors="coerce")
         first_m = idx_full.min().to_period("M").to_timestamp()
         last_m  = idx_full.max().to_period("M").to_timestamp()
     else:
         first_m = s.index.min().to_period("M").to_timestamp()
         last_m  = s.index.max().to_period("M").to_timestamp()
 
-    # Reindex to a continuous monthly range across the FULL period
     full_idx = pd.date_range(first_m, last_m, freq="MS")
-    s = s.reindex(full_idx, fill_value=0.0)  # use np.nan if you want blank cells
+    s = s.reindex(full_idx, fill_value=0.0)
 
-    # Pivot: Years x Months (ensure all years and 12 months exist)
-    data = pd.DataFrame({
-        "year": s.index.year,
-        "month": s.index.month,
-        "value": s.values
-    })
-    pivot = data.pivot(index="year", columns="month", values="value").sort_index()
-    min_year, max_year = int(data["year"].min()), int(data["year"].max())
-    pivot = pivot.reindex(index=range(min_year, max_year + 1))
-    pivot = pivot.reindex(columns=range(1, 13), fill_value=0.0)
+    # Pivot to Years x Months (12 cols)
+    data = pd.DataFrame({"year": s.index.year, "month": s.index.month, "value": s.values})
+    if data.empty:
+        years, z = [], np.empty((0, 12))
+    else:
+        pivot = data.pivot(index="year", columns="month", values="value").sort_index()
+        yr_min, yr_max = int(data["year"].min()), int(data["year"].max())
+        pivot = pivot.reindex(index=range(yr_min, yr_max + 1))
+        pivot = pivot.reindex(columns=range(1, 13), fill_value=0.0)
+        years = [str(y) for y in pivot.index.tolist()]
+        z = pivot.values
 
-    years = list(pivot.index)
     month_labels = [calendar.month_abbr[m] for m in range(1, 13)]
-    z = pivot.values
-
     colorscale = get_colorscale(palette)
-    fig = go.Figure(
-        data=[go.Heatmap(
-            z=z,
-            x=month_labels,
-            y=[str(y) for y in years],
-            colorscale=colorscale,
-            colorbar=dict(title="Dividends"),
-            hovertemplate="Year=%{y}<br>Month=%{x}<br>Total=%{z:.2f}<extra></extra>",
-            zsmooth=False
-        )]
-    )
+
+    # Visual (spaced tiles, bottom colorbar, centered title)
+    YGAP = 6; XGAP = YGAP
+    ROW_PX = 32; GAP_PX = YGAP
+    TOP_EXTRA = 50; BOTTOM_EXTRA = 90
+
+    n_rows = max(1, len(years))
+    plot_area_h = n_rows * ROW_PX + max(0, n_rows - 1) * GAP_PX
+    target_height = max(240, plot_area_h + TOP_EXTRA + BOTTOM_EXTRA)
+
+    fig = go.Figure(data=[go.Heatmap(
+        z=z, x=month_labels, y=years, colorscale=colorscale,
+        colorbar=dict(title="Dividends"),
+        xgap=XGAP, ygap=YGAP, zsmooth=False,
+        hovertemplate="Year=%{y}<br>Month=%{x}<br>Total=%{z:.2f}<extra></extra>",
+    )])
+    fig.update_traces(selector=dict(type="heatmap"),
+        colorbar=dict(orientation="h", x=0.5, xanchor="center",
+                      y=-0.24, yanchor="top", len=0.90, thickness=12))
     fig.update_layout(
-        title="<b>Monthly Dividends (Full Period)</b>",
-        xaxis_title="Month",
-        yaxis_title="Year",
-        margin=dict(l=10, r=10, t=50, b=10),
+        title="<b>Monthly Dividends (Full Period)</b>", title_x=0.5,
+        xaxis=dict(title="", side="top", showgrid=False, ticks="", showline=False, zeroline=False),
+        yaxis=dict(title="", showgrid=False, ticks="", showline=False, zeroline=False),
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        margin=dict(l=10, r=10, t=TOP_EXTRA, b=BOTTOM_EXTRA),
+        height=target_height,
     )
+    if n_rows <= 15:
+        fig.update_yaxes(tickfont=dict(size=12))
+
     pane = pn.pane.Plotly(fig, config={"responsive": True}, sizing_mode="stretch_width")
     return pane, fig
+
 
 def _get_portfolio_value_series(daily: pd.DataFrame) -> pd.Series | None:
     """
@@ -384,105 +449,6 @@ def _get_portfolio_value_series(daily: pd.DataFrame) -> pd.Series | None:
     # (E) give up
     return None
 
-
-def monthly_dividends_calendar(state, palette: str):
-    """
-    Heatmap: x = months (Jan..Dec), y = years, z = monthly dividends total.
-    FULL period (ignores state.date_range). Respects state.selected_symbols.
-    Same colors + colorbar as before, now with spaced tiles and clean axes.
-    """
-    # Prefer deriving from the widest daily df
-    df = None
-    daily_full = getattr(state, "daily_df_full", None)
-    if isinstance(daily_full, pd.DataFrame) and not daily_full.empty:
-        div_cols = [c for c in daily_full.columns if "div" in c.lower()]
-        if div_cols:
-            tmp = daily_full[div_cols].fillna(0.0).copy()
-            if not isinstance(tmp.index, pd.DatetimeIndex):
-                tmp.index = pd.to_datetime(tmp.index)
-            tmp["month"] = tmp.index.to_period("M").to_timestamp()
-            df = tmp.groupby("month").sum()
-            df.columns = [c.replace("div_", "").replace("DIV_", "") for c in df.columns]
-
-    # Fallbacks
-    if (df is None) or df.empty:
-        mdbs_full = getattr(state, "monthly_div_by_symbol_full", None)
-        if isinstance(mdbs_full, pd.DataFrame) and not mdbs_full.empty:
-            df = mdbs_full.copy()
-    if (df is None) or df.empty:
-        mdbs_part = getattr(state, "monthly_div_by_symbol", None)
-        if isinstance(mdbs_part, pd.DataFrame) and not mdbs_part.empty:
-            df = mdbs_part.copy()
-    if (df is None) or df.empty:
-        idx = pd.date_range(end=pd.Timestamp.today().normalize(), periods=18, freq="MS")
-        df = pd.DataFrame({
-            "AAA.MI": np.linspace(0.0, 10.0, len(idx)),
-            "BBB.DE": np.linspace(1.0, 8.0, len(idx))[::-1],
-        }, index=idx)
-
-    # Optional symbol filter
-    selected = getattr(state, "selected_symbols", None)
-    if selected:
-        keep = [s for s in selected if s in df.columns]
-        if keep:
-            df = df[keep]
-
-    # Normalize to month starts
-    if isinstance(df.index, pd.PeriodIndex):
-        df.index = df.index.to_timestamp()
-    else:
-        df.index = pd.to_datetime(df.index)
-
-    # Total per month across symbols
-    s = df.sum(axis=1)
-
-    # FULL month-start span from widest daily
-    if isinstance(daily_full, pd.DataFrame) and not daily_full.empty:
-        idx_full = pd.to_datetime(daily_full.index)
-        first_m = idx_full.min().to_period("M").to_timestamp()
-        last_m  = idx_full.max().to_period("M").to_timestamp()
-    else:
-        first_m = s.index.min().to_period("M").to_timestamp()
-        last_m  = s.index.max().to_period("M").to_timestamp()
-
-    full_idx = pd.date_range(first_m, last_m, freq="MS")
-    s = s.reindex(full_idx, fill_value=0.0)  # keep zeros as real values (colorbar stays meaningful)
-
-    # Pivot Year × Month
-    data = pd.DataFrame({"year": s.index.year, "month": s.index.month, "value": s.values})
-    pivot = data.pivot(index="year", columns="month", values="value").sort_index()
-    min_year, max_year = int(data["year"].min()), int(data["year"].max())
-    pivot = pivot.reindex(index=range(min_year, max_year + 1))
-    pivot = pivot.reindex(columns=range(1, 13), fill_value=0.0)
-
-    years = [str(y) for y in pivot.index.tolist()]
-    month_labels = [calendar.month_abbr[m] for m in range(1, 13)]
-    z = pivot.values
-    colorscale = get_colorscale(palette)
-
-    fig = go.Figure(data=[go.Heatmap(
-        z=z,
-        x=month_labels,
-        y=years,
-        colorscale=colorscale,
-        colorbar=dict(title="Dividends"),  # keep colorbar
-        xgap=2,  # ← spacing between tiles (px)
-        ygap=2,  # ← spacing between tiles (px)
-        zsmooth=False,
-        hovertemplate="Year=%{y}<br>Month=%{x}<br>Total=%{z:.2f}<extra></extra>",
-    )])
-    fig.update_layout(
-        title="<b>Monthly Dividends (Full Period)</b>",
-        xaxis=dict(title="", side="top", showgrid=False, ticks="", showline=False, zeroline=False),
-        yaxis=dict(title="", showgrid=False, ticks="", showline=False, zeroline=False),
-        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
-        margin=dict(l=10, r=10, t=40, b=10),
-        height=max(140, 22 * max(1, len(years)) + 60),  # smaller squares; tweak 22 for size
-    )
-    pane = pn.pane.Plotly(fig, config={"responsive": True}, sizing_mode="stretch_width")
-    return pane, fig
-
-
 def total_portfolio_value_calendar(state, palette: str):
     """
     Heatmap: x = months (Jan..Dec), y = years, z = EoM total portfolio value.
@@ -550,24 +516,55 @@ def total_portfolio_value_calendar(state, palette: str):
     colorscale = get_colorscale(palette)
     month_labels = [calendar.month_abbr[m] for m in range(1, 13)]
 
+    # ---- layout/spacing constants ----
+    YGAP = 6            # must match heatmap ygap
+    XGAP = YGAP
+    ROW_PX = 32         # pixels per year row; increase for taller rows
+    GAP_PX = YGAP       # keep equal to YGAP for accurate sizing
+    TOP_EXTRA = 50      # title + top padding (pairs with margin.t below)
+    BOTTOM_EXTRA = 90   # space for horizontal colorbar (pairs with margin.b)
+
+    n_rows = max(1, len(years))
+    plot_area_h = n_rows * ROW_PX + max(0, n_rows - 1) * GAP_PX
+    target_height = max(240, plot_area_h + TOP_EXTRA + BOTTOM_EXTRA)
+
     fig = go.Figure(data=[go.Heatmap(
         z=z,
         x=month_labels,
         y=years,
         colorscale=colorscale,
-        colorbar=dict(title="Portfolio Value"),  # keep colorbar
-        xgap=2,  # ← spacing
-        ygap=2,  # ← spacing
+        colorbar=dict(title="Portfolio Value"),
+        xgap=XGAP,
+        ygap=YGAP,
         zsmooth=False,
         hovertemplate="Year=%{y}<br>Month=%{x}<br>Value=%{z:.2f}<extra></extra>",
     )])
+
+    # Horizontal, centered colorbar just below plot
+    fig.update_traces(
+        selector=dict(type="heatmap"),
+        colorbar=dict(
+            orientation="h",
+            x=0.5, xanchor="center",
+            y=-0.24, yanchor="top",
+            len=0.90,
+            thickness=12,
+        ),
+    )
+
     fig.update_layout(
         title="<b>Total Portfolio Value (Full Period)</b>",
+        title_x=0.5,  # <-- center the title
         xaxis=dict(title="", side="top", showgrid=False, ticks="", showline=False, zeroline=False),
         yaxis=dict(title="", showgrid=False, ticks="", showline=False, zeroline=False),
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
-        margin=dict(l=10, r=10, t=40, b=10),
-        height=max(140, 22 * max(1, len(years)) + 60),
+        margin=dict(l=10, r=10, t=TOP_EXTRA, b=BOTTOM_EXTRA),
+        height=target_height,
     )
+
+    # (Optional) improve legibility at taller row heights
+    if n_rows <= 15:
+        fig.update_yaxes(tickfont=dict(size=12))
+
     pane = pn.pane.Plotly(fig, config={"responsive": True}, sizing_mode="stretch_width")
     return pane, fig

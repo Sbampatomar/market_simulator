@@ -13,8 +13,8 @@ INVESTMENT_PLAN_FILE = INPUT_FOLDER / 'investment_plan.csv'
 DIVIDEND_TARGET_FILE = INPUT_FOLDER / 'dividend_reinvestment_targets.csv'
 SYMBOL_METADATA_FILE = INPUT_FOLDER / 'symbol_metadata.csv'
 
-START_DATE = '2020-07-25'
-END_DATE   = '2025-08-12'
+START_DATE = '2020-07-20'
+END_DATE   = '2025-08-14'
 
 TAX_RATE_DEFAULT = Decimal("0.26")
 REINVESTMENT_THRESHOLD = Decimal("250")

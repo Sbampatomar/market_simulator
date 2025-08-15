@@ -1,6 +1,7 @@
 import panel as pn
 import plotly.graph_objects as go
 import numpy as np
+from plotly.colors import qualitative as q
 
 def _allocation_series(state, field, categories=None, min_categories=None):
     latest_values = state.daily_df.iloc[-1]
@@ -46,25 +47,32 @@ def _allocation_series(state, field, categories=None, min_categories=None):
     return cats, current_vals, avg_vals
 
 def _radar_figure(title_text, categories, current_vals, avg_vals):
+
+    avg_color = q.Set2[0]      # e.g., muted green
+    latest_color = q.Set2[1]   # e.g., muted orange
+
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(r=avg_vals + [avg_vals[0]],
                                   theta=categories + [categories[0]],
                                   mode='lines',
                                   name='Average',
-                                  line=dict(dash='dot')))
+                                  line=dict(color=avg_color, dash='dot', width=2)))
     fig.add_trace(go.Scatterpolar(r=current_vals + [current_vals[0]],
                                   theta=categories + [categories[0]],
                                   mode='lines+markers',
                                   name='Latest',
-                                  line=dict(width=3)))
+                                  line=dict(color=latest_color, width=2),          # <= line color
+                                  marker=dict(color=latest_color, size=5)          # <= marker color to match
+                                  ))
     fig.update_layout(
         title={"text": f"<b>{title_text}</b>", "x": 0.5},
         polar=dict(
             radialaxis=dict(visible=True, gridcolor='lightgray'),
             angularaxis=dict(gridcolor='lightgray'),
-            bgcolor='white'
+            bgcolor='white',
+            gridshape="linear",              # <- polygonal grid
         ),
-        height=350,
+        height=500,
         paper_bgcolor='white',
         plot_bgcolor='white',
         font=dict(color="black", size=12),
