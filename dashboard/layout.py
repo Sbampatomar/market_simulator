@@ -6,7 +6,7 @@ from dashboard.plots import lines, bars, heatmaps, radars
 from dashboard.plots.lines import portfolio_value_with_symbols
 
 def build_layout(state, widgets):
-    # Unpack widgets
+    # Unpack widgets (widgets is a tuple)
     date_range, heatmap_palette, symbol_selector, view_mode_toggle = widgets
 
     # ---------------- Overview ----------------
@@ -28,10 +28,17 @@ def build_layout(state, widgets):
     ltm_by_symbol_pane, _ = bars.dividends_by_symbol_last_12m(state)
 
     # ---------------- Heatmaps (palette-bound) ----------------
-    calendar_div_view = pn.bind(lambda palette: heatmaps.monthly_dividends_calendar(state, palette)[1],
-                                palette=heatmap_palette)
-    calendar_val_view = pn.bind(lambda palette: heatmaps.total_portfolio_value_calendar(state, palette)[1],
-                                palette=heatmap_palette)
+    # monthly_dividends_calendar returns a single go.Figure
+    calendar_div_view = pn.bind(
+        lambda palette: heatmaps.monthly_dividends_calendar(state, palette),
+        palette=heatmap_palette
+    )
+    # If your total_portfolio_value_calendar still returns (title, fig), keep [1]
+    calendar_val_view = pn.bind(
+        lambda palette: heatmaps.total_portfolio_value_calendar(state, palette),
+        palette=heatmap_palette
+    )
+
     calendar_div_pane = pn.pane.Plotly(calendar_div_view, config={"responsive": True}, sizing_mode="stretch_width")
     calendar_val_pane = pn.pane.Plotly(calendar_val_view, config={"responsive": True}, sizing_mode="stretch_width")
 
@@ -42,7 +49,7 @@ def build_layout(state, widgets):
     # ---------------- KPIs ----------------
     custom_kpis = compute_custom_kpis(state, state.kpis)
 
-    # --------- Unified rebuild for symbol-dependent charts ----------
+    # --------- Unified rebuild for symbol/date dependent charts ----------
     def _rebuild_symbol_dependent():
         # Portfolio value + individual symbols
         _, fig_comp = portfolio_value_with_symbols(state)
@@ -52,14 +59,17 @@ def build_layout(state, widgets):
         _, fig_ltm_sym = bars.dividends_by_symbol_last_12m(state)
         ltm_by_symbol_pane.object = fig_ltm_sym
 
-        # Monthly Dividends (Full Period) calendar — depends on selected symbols + palette
-        _, fig_div_cal = heatmaps.monthly_dividends_calendar(state, palette=heatmap_palette.value)
+        # Monthly Dividends (Full Period) calendar (returns a single Figure)
+        fig_div_cal = heatmaps.monthly_dividends_calendar(state, palette=heatmap_palette.value)
         calendar_div_pane.object = fig_div_cal
 
-    # Watch symbol selection — update state THEN rebuild (works for both clicks and buttons)
+        # Total Portfolio Value (Full Period) calendar (keep [1] if function returns (title, fig))
+        fig_val_cal = heatmaps.total_portfolio_value_calendar(state, palette=heatmap_palette.value)
+        calendar_val_pane.object = fig_val_cal
+
+    # Watch symbol selection — update state THEN rebuild
     raw_checkbox = getattr(symbol_selector, "_checkbox", None) or symbol_selector
     def _on_symbols_change(event):
-        # event.new is the checkbox value after buttons or manual clicks
         state.selected_symbols = [str(s).upper() for s in event.new]
         _rebuild_symbol_dependent()
     raw_checkbox.param.watch(_on_symbols_change, "value")
@@ -126,8 +136,8 @@ def build_layout(state, widgets):
         ("Monthly IRR",                          lambda: bars.monthly_irr(state)[1]),
         ("Total Dividends - Last 12 Months",     lambda: bars.dividends_last_12m_total(state)[1]),
         ("Dividends by Symbol - Last 12 Months", lambda: bars.dividends_by_symbol_last_12m(state)[1]),
-        ("Monthly Dividends (Full Period)",      lambda: heatmaps.monthly_dividends_calendar(state, palette=heatmap_palette.value)[1]),
-        ("Total Portfolio Value (Full Period)",  lambda: heatmaps.total_portfolio_value_calendar(state, palette=heatmap_palette.value)[1]),
+        ("Monthly Dividends (Full Period)",      lambda: heatmaps.monthly_dividends_calendar(state, palette=heatmap_palette.value)),
+        ("Total Portfolio Value (Full Period)",  lambda: heatmaps.total_portfolio_value_calendar(state, palette=heatmap_palette.value)),
         ("Sector Allocation",                    lambda: sector_alloc_fig),
         ("Country Allocation",                   lambda: country_alloc_fig),
     ]

@@ -14,6 +14,10 @@ from kpi_exporter import (generate_dividend_yield_by_symbol,
                            generate_additional_kpis,
                            export_allocation)
 
+# NEW: import the ledger and aggregator from simcore (not "simulation.*" to avoid name clash)
+from simcore.ledger import DividendsLedger
+from simcore.aggregators import build_monthly_dividends
+
 def get_dividend_tax_rate(country):
     return TAX_RATES.get(country, TAX_RATE_DEFAULT)
 
@@ -23,6 +27,9 @@ def run_simulation(start_date=None, end_date=None, reinvestment_threshold=None):
     start_date = pd.to_datetime(start_date if start_date else START_DATE)
     end_date = pd.to_datetime(end_date if end_date else END_DATE)
     reinvestment_threshold = Decimal(reinvestment_threshold if reinvestment_threshold else REINVESTMENT_THRESHOLD)
+
+    # NEW: instantiate the dividends ledger
+    ledger = DividendsLedger(base_currency="EUR")  # keep EUR as base (fx_to_base=1 in this version)
 
     tx_df = pd.read_csv(TRANSACTION_FILE, parse_dates=['date'])
     tx_df['price'] = tx_df.get('price', pd.NA)
@@ -88,6 +95,9 @@ def run_simulation(start_date=None, end_date=None, reinvestment_threshold=None):
     for day in trading_days:
         actions = []
         month_str = day.strftime("%Y-%m")
+        # NEW: track the day's net dividends (for daily_portfolio flags)
+        daily_dividend_net_sum = Decimal("0.0")
+
         if month_str not in monthly_stats:
             monthly_stats[month_str] = {'first_value': Decimal("0.0"), 'last_value': Decimal("0.0"),
                                         'dividends': Decimal("0.0"), 'contributions': Decimal("0.0"),
@@ -152,9 +162,11 @@ def run_simulation(start_date=None, end_date=None, reinvestment_threshold=None):
                         dividend = Decimal(str(div_val))
                         gross = held[sym] * dividend
                         country = symbol_metadata.loc[sym, 'country'] if sym in symbol_metadata.index else 'Unknown'
-                        tax_rate = Decimal(str(get_dividend_tax_rate(country)))
+                        tax_rate = Decimal(str(get_dividend_tax_rate(country)))  # treated as domestic tax here
                         net = gross * (Decimal('1.0') - tax_rate)
                         tax = gross - net
+
+                        # Accumulate monthly and per-symbol stats (your existing logic)
                         monthly_stats[month_str]['dividends'] += net
                         monthly_dividends_by_symbol.setdefault(month_str, {}).setdefault(sym, Decimal('0.0'))
                         monthly_dividends_by_symbol[month_str][sym] += net
@@ -162,6 +174,24 @@ def run_simulation(start_date=None, end_date=None, reinvestment_threshold=None):
                         net_dividends[sym] = net_dividends.get(sym, Decimal('0.0')) + net
                         dividend_taxes_paid += tax
                         dividend_buffers[sym] += net
+
+                        # NEW: feed the canonical ledger (atomic event)
+                        # We don't have currency/FX split in this version; assume base currency.
+                        ledger.record(
+                            date=day.date(),
+                            symbol=sym,
+                            qty=held[sym],
+                            dps_gross=dividend,
+                            currency="EUR",
+                            fx_to_base=1,
+                            withholding_rate=Decimal("0.00"),
+                            domestic_tax_rate=tax_rate,
+                            broker_fee=Decimal("0.00"),
+                            notes="from price_data['Dividend']"
+                        )
+
+                        # NEW: track day-level net dividends for daily_portfolio flags
+                        daily_dividend_net_sum += net
 
         if ENABLE_MONTHLY_REINVESTMENT:
             if day.month != current_month:
@@ -202,6 +232,7 @@ def run_simulation(start_date=None, end_date=None, reinvestment_threshold=None):
             monthly_stats[month_str]['first_value'] = total_value
         monthly_stats[month_str]['last_value'] = total_value
 
+        # NEW: include dividend flags/amount in the daily row
         rows.append({
             'date': day,
             'total_value': float(total_value),
@@ -213,6 +244,8 @@ def run_simulation(start_date=None, end_date=None, reinvestment_threshold=None):
             **{f"avg_price_{s}": float(avg_price[s]) for s in all_symbols},
             **{f"val_{s}": float(values[s]) for s in all_symbols},
             **{f"gain_{s}": float(unrealized[s]) for s in all_symbols},
+            'dividend_event': int(daily_dividend_net_sum > 0),            # NEW
+            'daily_dividend_net': float(daily_dividend_net_sum),           # NEW
             'actions': '; '.join(actions)
         })
         if actions:
@@ -238,12 +271,14 @@ def run_simulation(start_date=None, end_date=None, reinvestment_threshold=None):
     monthly_df = monthly_df.sort_values('month').set_index('month')
     monthly_df.to_csv(OUTPUT_FOLDER / "monthly_stats.csv", float_format="%.4f")
 
-    dividend_df = pd.DataFrame.from_dict(monthly_dividends_by_symbol, orient='index')
-    dividend_df.index = pd.to_datetime(dividend_df.index)
-    dividend_df = dividend_df.sort_index().fillna(0.0).astype(float)
-    dividend_df["total_dividends"] = dividend_df.sum(axis=1)
-    dividend_df.to_csv(OUTPUT_FOLDER / "monthly_dividends.csv", float_format="%.4f")
+    # === NEW: write the atomic dividends ledger and build the single monthly file ===
+    # 1) atomic events
+    ledger.to_csv(OUTPUT_FOLDER / "dividends_events.csv")
 
+    # 2) single wide file: month,total,<SYMBOLS...> in YYYY-MM format
+    build_monthly_dividends(OUTPUT_FOLDER)
+
+    # (Keep your legacy dict in memory for KPIs if needed)
     export_allocation(sector_exposure, 'sector')
     export_allocation(country_exposure, 'country')
     generate_dividend_yield_by_symbol(result_df, monthly_dividends_by_symbol)
